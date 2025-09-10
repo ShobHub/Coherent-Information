@@ -339,10 +339,10 @@ if __name__ == "__main__":
         p_list, Ic_z = sweep_p_Ic(code, p_grid, num_samples=num_samples, seed=seed)
 
         # Dual picture (Z-errors detected by X-plaquettes)
-        H_X, l_X, n = build_mobius_code_dual(L, w)
-        print(H_X,H_X.shape,l_X,n)
-        code = CoherentInfoMC(H_X, l_X, k=1, use_destabilisers=True, dual=True)
-        p_list, Ic_x = sweep_p_Ic(code, p_grid, num_samples=num_samples, seed=seed)
+        # H_X, l_X, n = build_mobius_code_dual(L, w)
+        # print(H_X,H_X.shape,l_X,n)
+        # code = CoherentInfoMC(H_X, l_X, k=1, use_destabilisers=True, dual=True)
+        # p_list, Ic_x = sweep_p_Ic(code, p_grid, num_samples=num_samples, seed=seed)
 
         print(p_list, Ic_z)
         plt.plot(p_list, Ic_z, marker='o')
