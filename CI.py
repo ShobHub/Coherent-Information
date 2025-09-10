@@ -323,16 +323,16 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     # Choose several sizes (roughly increasing distance ~ w) to see finite-size crossings
-    sizes = [(5, 5, 5, 5)]
+    sizes = [(3,3),(5, 5)]
     k = 1
     # p grid (bit-flip/BSC); near threshold ~0.11 so cover 0.02..0.18
     p_grid = np.linspace(0.0, 0.25, 15)
-    num_samples = 1000  # per p; increase for smoother monotone curves
+    num_samples = 1000000  # per p; increase for smoother monotone curves
     seed = 42
 
     plt.figure()
     legends = []
-    for (L, w, l, W) in sizes:
+    for (L, w) in sizes:
         H_Z, l_Z, n = build_mobius_code(L, w)
         print(H_Z,H_Z.shape,l_Z,n)
         code = CoherentInfoMC(H_Z, l_Z, k=1, use_destabilisers=True, dual=False, L=L, w=w)
@@ -341,12 +341,12 @@ if __name__ == "__main__":
         # Dual picture (Z-errors detected by X-plaquettes)
         # H_X, l_X, n = build_mobius_code_dual(L, w)
         # print(H_X,H_X.shape,l_X,n)
-        # code = CoherentInfoMC(H_X, l_X, k=1, use_destabilisers=True, dual=True)
+        # code = CoherentInfoMC(H_X, l_X, k=1, use_destabilisers=True, dual=True, L=L, w=w)
         # p_list, Ic_x = sweep_p_Ic(code, p_grid, num_samples=num_samples, seed=seed)
 
         print(p_list, Ic_z)
         plt.plot(p_list, Ic_z, marker='o')
-        legends.append(f"L={l}, w={W}")
+        legends.append(f"L={L}, w={w}")
 
     plt.axhline(0.0, linestyle='--', linewidth=1)
     plt.xlabel("Physical error rate p (bit-flip)")
