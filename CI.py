@@ -1,26 +1,19 @@
 '''
-## 1. What the code is for
-
+## 1. What the code is for -->
 The goal is to estimate the coherent information I_c(p) of your code when qubits go through a bit-flip/phase-flip channel with probability $p$.
-
 * This tells you how much quantum information the code can still carry.
 * The script does this by Monte Carlo sampling: it simulates many random error patterns and counts how syndromes and logical errors appear.
 
 ---
-
 ## 2. Key objects
-
 * **$H_Z$** → matrix that describes all **Z stabilizer checks** (rows = checks, columns = qubits).
 * **$l_Z$** → vector that describes the **logical Z operator** (which qubits it touches).
 * **$m_0$** → reference error pattern (you can set it to zeros if you like).
 * **$k$** → number of logical qubits (for your Möbius strip, it’s $k=1$).
 
 ---
-
 ## 3. The sampling step
-
 For each simulated error pattern:
-
 1. **Draw random errors**: Each qubit flips with probability $p$.
    → This gives a binary vector $m$.
 2. **Compute the syndrome**: Multiply $H_Z m \bmod 2$.
@@ -31,11 +24,8 @@ For each simulated error pattern:
    → That’s the data we need to estimate conditional probabilities.
 
 ---
-
 ## 4. Estimating entropy
-
 ## 5. Coherent information formula
-
 ## 6. Sweeping over error probability $p$
 '''
 
@@ -87,7 +77,6 @@ def conditional_entropy_from_joint(counts_joint: Dict[Tuple, int], N: int, key_l
 # -------------------------------
 # Möbius/cylinder strip (d=2)
 # -------------------------------
-
 def build_mobius_code(L: int, w: int) -> Tuple[np.ndarray, np.ndarray, int]:
     assert L >= 2 and w >= 2
 
@@ -97,7 +86,6 @@ def build_mobius_code(L: int, w: int) -> Tuple[np.ndarray, np.ndarray, int]:
 
     def idxH(y, x):
         return y * L + (x % L)
-
     def idxV(y, x):
         return nH + y * L + (x % L)
 
@@ -132,12 +120,10 @@ def build_mobius_code_dual(L: int, w: int) -> Tuple[np.ndarray, np.ndarray, int]
 
     def idxH(y, x):
         return y * L + x  # horizontal edges indexed by y (row), x (column)
-
     def idxV(y, x):
         return nH + y * L + x  # vertical edges indexed by y (row), x (column)
 
     rows = []
-
     for y in range(w):
         for x in range(L):
             row = np.zeros(n, dtype=np.uint8)
@@ -155,7 +141,6 @@ def build_mobius_code_dual(L: int, w: int) -> Tuple[np.ndarray, np.ndarray, int]
                 row[idxH(y, x)] = 1  # bottom horizontal
                 row[idxV(y, x)] = 1  # left vertical
                 row[idxV(y, (x + 1) % L)] = 1  # right vertical
-
             rows.append(row)
 
     H_X = np.array(rows, dtype=np.uint8)
@@ -174,9 +159,9 @@ class CoherentInfoMC:
     - If bitflip_only=False: symmetric BSC -> I_c = k - 2 H(X_L|Σ_Z)
       (approximation for independent X/Z errors).
     """
-    def __init__(self, H_full: np.ndarray, l_op: np.ndarray, k: int = 1,
-                 use_destabilisers: bool = True, dual: bool = False,
+    def __init__(self, H_full: np.ndarray, l_op: np.ndarray, k: int = 1, use_destabilisers: bool = True, dual: bool = False,
                  bitflip_only: bool = False, L: int | None = None, w: int | None = None):
+
         assert H_full.dtype == np.uint8 and l_op.dtype == np.uint8
         self.H_full = H_full
         self.l_op = l_op
@@ -194,7 +179,7 @@ class CoherentInfoMC:
         self.H_ind = self.H_full.copy()
         self.row_keep = np.arange(self.H_full.shape[0], dtype=int)
         self.r = self.H_full.shape[0]
-        self.pivot_cols = list(range(self.r))
+        # self.pivot_cols = list(range(self.r))
 
         # ---------------------------
         # Build destabiliser matrix R if requested
@@ -202,12 +187,17 @@ class CoherentInfoMC:
         if use_destabilisers:
             if dual:
                 # Optional: implement build_plaquette_destabilisers() if needed
-                self.R = self.build_plaquette_destabilisers()
+                self.R = self.build_face_destabilisers()
             else:
                 self.R = self.build_vertex_destabilisers()
 
+    # -------------------------------
+    # Destabilizers
+    # -------------------------------
     def build_vertex_destabilisers(self) -> np.ndarray:
-        n = self.n
+        nH = self.L * (self.w - 1)  # horizontal edges
+        nV = self.L * self.w  # vertical edges
+        n = nH + nV
         r = self.H_ind.shape[0]
         R_vertex = np.zeros((n, r), dtype=np.uint8)
 
@@ -246,12 +236,55 @@ class CoherentInfoMC:
 
             R_vertex[:, j] = dest
 
-        rows, cols = np.where(R_vertex == 1)
-        for r, c in zip(rows, cols):
-            print(f"1 at row {r}, col {c}")
-
+        # rows, cols = np.where(R_vertex == 1)
+        # for r, c in zip(rows, cols):
+        #     print(f"1 at row {r}, col {c}")
         return R_vertex
 
+    def build_face_destabilisers(self) -> np.ndarray:
+        """
+        Automatically build X-type face destabilizers R_face for a (L, w) lattice.
+        Follows the dual-lattice path logic from a removed face (top-left).
+        """
+        nH = self.L * (self.w - 1)  # number of horizontal qubits
+        nV = self.L * self.w  # number of vertical qubits
+        n = nH + nV  # total qubits
+        num_face = self.L * self.w - 1  # remove one face (top-left)
+
+        R_face = np.zeros((n, num_face), dtype=int)
+
+        # Helper functions: map vertex (y,x) to qubit indices
+        def idxH(y, x):
+            return y * self.L + (x % self.L)
+        def idxV(y, x):
+            return nH + y * self.L + (x % self.L)
+
+        # List all faces (excluding top-left face)
+        face_list = [(y, x) for y in range(self.w) for x in range(self.L)]
+        # Remove the top-left face
+        face_list.remove((0, 0))
+
+        # For each face, build a "path" from removed face to this face along dual lattice
+        for col, (fy, fx) in enumerate(face_list):
+            qubits = []
+            # horizontal edges
+            for x in range(1, fx + 1):
+                qubits.append(idxV(fy, x))
+            # vertical edges along column fx from y=0 to fy
+            for y in range(fy):
+                qubits.append(idxH(y, 0))  #fx - 1))
+            # assign 1 to R_face
+            R_face[qubits, col] = 1
+
+        # rows, cols = np.where(R_face == 1)
+        # for r, c in zip(rows, cols):
+        #     print(f"1 at row {r}, col {c}")
+        # print(R_face.shape)
+        return R_face
+
+    # -------------------------------
+    # Canonical error from syndrome
+    # -------------------------------
     def m0_from_sigma(self, sigma_reduced: np.ndarray) -> np.ndarray:
         """
         Compute the canonical error consistent with measured independent stabilizer syndrome.
@@ -266,53 +299,71 @@ class CoherentInfoMC:
         """
         # Random error string
         m = (rng.random(self.n) < p).astype(np.uint8)
-
         # Full syndrome
         sigma_full = (self.H_full @ m) % 2
-
         # Independent stabilizer syndrome
         sigma_ind = sigma_full[self.row_keep]
-
         # Canonical error consistent with measured syndrome
         m0 = self.m0_from_sigma(sigma_ind)
-
         # Residual error
         diff = (m + m0) % 2  # addition mod 2 = XOR
-
         # Logical operator measurement
         x = int((diff @ self.l_op) % 2)
 
         return tuple(sigma_ind.tolist()), x
-
+    
     def estimate_H_X_given_S(self, p: float, num_samples: int, seed: int | None = None) -> float:
         rng = np.random.default_rng(seed)
         joint = Counter()
-        for _ in range(num_samples):
+        for cc in range(num_samples):
             sigma_ind, x = self.sample_trial(p, rng)
             joint[(x,) + sigma_ind] += 1
-        print(joint)
         return conditional_entropy_from_joint(joint, num_samples, key_left_len=1)
 
-    def coherent_info(self, p: float, num_samples: int, seed: int | None = None) -> float:
-        """
-        Return I_c for this noise model:
-          - if bitflip_only: I_c = k - H(X_L | Σ_Z)
-          - else: symmetric BSC approx: I_c = k - 2 H(X_L | Σ_Z)
-        """
-        H_XgS = self.estimate_H_X_given_S(p, num_samples, seed)
-        if self.bitflip_only:
-            return float(self.k) - 1.0 * H_XgS
-        else:
-            # print('$')
-            return float(self.k) - 2.0 * H_XgS
+    # -------------------------------
+    # Dual sampling: H(x_Z | sigma_X)
+    # -------------------------------
+    def m0_from_sigma_dual(self, sigma_reduced: np.ndarray, dual_R: np.ndarray) -> np.ndarray:
+        return ((dual_R @ sigma_reduced) % 2).astype(np.uint8)
 
-def sweep_p_Ic(code: CoherentInfoMC, p_values: Iterable[float], num_samples: int, seed: int | None = None):
+    def sample_trial_dual(self, p: float, dual_H: np.ndarray, dual_l: np.ndarray,
+                              dual_R: np.ndarray, rng: np.random.Generator) -> Tuple[Tuple[int, ...], int]:
+        m = (rng.random(self.n) < p).astype(np.uint8)
+        sigma_full = (dual_H @ m) % 2
+        sigma_ind = sigma_full[1:]
+        m0 = self.m0_from_sigma_dual(sigma_ind, dual_R)
+        diff = (m + m0) % 2
+        x = int((diff @ dual_l) % 2)
+        return tuple(sigma_ind.tolist()), x
+
+    def estimate_H_Z_given_S(self, p: float, dual_H: np.ndarray, dual_l: np.ndarray,
+                                 dual_R: np.ndarray, num_samples: int, seed: int | None = None) -> float:
+        rng = np.random.default_rng(seed)
+        joint = Counter()
+        for cc in range(num_samples):
+            sigma_ind, x = self.sample_trial_dual(p, dual_H, dual_l, dual_R, rng)
+            joint[(x,) + sigma_ind] += 1
+        return conditional_entropy_from_joint(joint, num_samples, key_left_len=1)
+
+    # -------------------------------
+    # Full coherent information
+    # -------------------------------
+    def coherent_info_full(self, p: float, dual_H: np.ndarray, dual_l: np.ndarray,
+                               dual_R: np.ndarray, num_samples: int, seed: int | None = None) -> float:
+        H_XgS = self.estimate_H_X_given_S(p, num_samples=num_samples, seed=seed)
+        H_ZgS = self.estimate_H_Z_given_S(p, dual_H, dual_l, dual_R,num_samples=num_samples, seed=seed)
+        print(p,1.0 - H_XgS - H_ZgS)
+        return 1.0 - H_XgS - H_ZgS
+
+def sweep_p_Ic_full(code: CoherentInfoMC, dual_H: np.ndarray, dual_l: np.ndarray,
+                    dual_R: np.ndarray, p_values: Iterable[float], num_samples: int,
+                    seed: int | None = None):
     p_list = np.array(list(p_values), dtype=float)
     rng = np.random.default_rng(seed)
     seeds = rng.integers(0, 2**31 - 1, size=len(p_list))
     Ic = np.zeros_like(p_list)
     for i, (p, s) in enumerate(zip(p_list, seeds)):
-        Ic[i] = code.coherent_info(p, num_samples=num_samples, seed=int(s))
+        Ic[i] = code.coherent_info_full(p, dual_H, dual_l, dual_R,num_samples=num_samples, seed=int(s))
     return p_list, Ic
 
 # -------------------------------
@@ -321,33 +372,25 @@ def sweep_p_Ic(code: CoherentInfoMC, p_values: Iterable[float], num_samples: int
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-
-    # Choose several sizes (roughly increasing distance ~ w) to see finite-size crossings
-    sizes = [(3,3),(5, 5)]
+   
+    sizes = [(3,3,10**6),(5,5,2*10**7)]  
     k = 1
-    # p grid (bit-flip/BSC); near threshold ~0.11 so cover 0.02..0.18
     p_grid = np.linspace(0.0, 0.25, 15)
-    num_samples = 1000000  # per p; increase for smoother monotone curves
     seed = 42
 
     plt.figure()
     legends = []
-    for (L, w) in sizes:
+    for (L, w, num_samples) in sizes:
         H_Z, l_Z, n = build_mobius_code(L, w)
-        print(H_Z,H_Z.shape,l_Z,n)
+        H_X, l_X, n = build_mobius_code_dual(L, w)
         code = CoherentInfoMC(H_Z, l_Z, k=1, use_destabilisers=True, dual=False, L=L, w=w)
-        p_list, Ic_z = sweep_p_Ic(code, p_grid, num_samples=num_samples, seed=seed)
+        R_X = code.build_face_destabilisers()
+        p_list, Ic = sweep_p_Ic_full(code, H_X, l_X, R_X, p_grid, num_samples=num_samples, seed=seed)
 
-        # Dual picture (Z-errors detected by X-plaquettes)
-        # H_X, l_X, n = build_mobius_code_dual(L, w)
-        # print(H_X,H_X.shape,l_X,n)
-        # code = CoherentInfoMC(H_X, l_X, k=1, use_destabilisers=True, dual=True, L=L, w=w)
-        # p_list, Ic_x = sweep_p_Ic(code, p_grid, num_samples=num_samples, seed=seed)
-
-        print(p_list, Ic_z)
-        plt.plot(p_list, Ic_z, marker='o')
+        print(p_list, Ic)
+        plt.plot(p_list, Ic, marker='o')
         legends.append(f"L={L}, w={w}")
-
+       
     plt.axhline(0.0, linestyle='--', linewidth=1)
     plt.xlabel("Physical error rate p (bit-flip)")
     plt.ylabel("Coherent information $I_c$")
@@ -356,21 +399,3 @@ if __name__ == "__main__":
     plt.legend(legends, title="Sizes", loc="best")
     plt.tight_layout()
     plt.show()
-
-'''
-[0.         0.01785714 0.03571429 0.05357143 0.07142857 0.08928571
- 0.10714286 0.125      0.14285714 0.16071429 0.17857143 0.19642857
- 0.21428571 0.23214286 0.25      ] 
- 
- [ 1.          0.93679273  0.78942731  0.59458185  0.37652388  0.15790775
- -0.05161777 -0.24257971 -0.41024489 -0.55223954 -0.6689805  -0.76114525
- -0.83309622 -0.88654776 -0.92567439]
- 
- [ 1.          0.99074624  0.92747075  0.77687587  0.54444582  0.2646066
- -0.02439979 -0.28826754 -0.50798989 -0.67643478 -0.79565897 -0.87551452
- -0.92485012 -0.95377226 -0.96937676]
- 
- [1.         0.99982294 0.99825186 0.99656882 0.9968508  0.99824935
- 0.99933    0.99975712 0.9999242  0.99996952 0.99998585 0.99999401
- 0.99999456 0.99999673 0.99999619]
- '''
