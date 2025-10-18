@@ -2,7 +2,7 @@
 name = "coherentinfo"
 version = "0.0.1"
 authors = [
-  {name="Alessandro Ciani", email="author@example.com" },
+  {name="Alessandro Ciani", email="alessandrociani89@gmail.com" },
   {name="Shobhna Singh"}
 ]
 description = "Python package for the calculation of coherent information in stabilizer codes"
@@ -16,8 +16,8 @@ dependencies = [
   "numpy>=2.3.0"
 ]
 
-license = "Apache License 2.0"
-license-files = ["LICEN[CS]E*"]
+license = {file = "LICENSE"}
+
 
 [project.urls]
 Homepage = "https://github.com/ShobHub/Coherent-Information.git"
