@@ -1,0 +1,152 @@
+# Module for the linear algebra over finite fields
+
+import numpy as np
+from typing import Tuple
+from numpy.typing import NDArray
+import math
+
+def is_prime(n: int) -> bool:
+    """Check if a number is prime using trial division.
+
+    This simple implementation is fine for small/moderate primes. For very
+    large moduli you may want a faster probabilistic test (Miller-Rabin).
+    """
+    
+    if n <= 1:
+        return False
+    for i in range(2, int(math.sqrt(n)) + 1):
+        if n % i == 0:
+            return False
+    return True
+
+def finite_field_gauss_jordan_elimination(
+        mat: NDArray[np.int_],
+        p: int
+) -> NDArray[np.int_]:
+    """Return the reduced row-echelon form (RREF) of ``mat`` over GF(p).
+
+    This performs Gauss-Jordan elimination: each pivot is normalized to 1
+    and the pivot column is eliminated in all other rows. Over a finite 
+    field the resulting RREF is unique. Note that if the matrix is 
+    full-rank, the RREF will be the identity matrix.
+
+    Args:
+        mat: Numpy array representing the matrix. The array is copied
+            and not mutated.
+        p: Prime modulus (must be prime so inverses exist for non-zero elems).
+
+    Returns:
+        A new numpy array containing the RREF of ``mat`` modulo ``p``.
+    """
+    if not is_prime(p):
+        raise ValueError(f"Modulus p={p} is not prime; "
+                         f"gauss_jordan_elimination requires a prime p.")
+
+    num_rows, num_cols = mat.shape
+    # Converts the matrix to mod p
+    mat = mat.copy() % p
+    row = 0
+    for col in range(num_cols):
+        if row >= num_rows:
+            break
+        pivot_rows = np.where(mat[row:, col] != 0)[0]
+        if len(pivot_rows) == 0:
+            continue
+        pivot_row = pivot_rows[0] + row
+        if pivot_row != row:
+            mat[[row, pivot_row]] = mat[[pivot_row, row]]
+        inv_pivot = pow(int(mat[row, col]), -1, p)
+        mat[row] = (mat[row] * inv_pivot) % p
+        for r in range(num_rows):
+            if r != row and mat[r, col] != 0:
+                mat[r] = (mat[r] - mat[r, col] * mat[row]) % p
+        row += 1
+    return mat
+
+def finite_field_matrix_rank(
+        mat: NDArray[np.int_],
+        p: int       
+) -> int:
+    """Return the rank of ``mat`` over GF(p).
+
+    Args:
+        mat: Numpy array representing the matrix. The array is copied
+            and not mutated.
+        p: Prime modulus (must be prime so inverses exist for non-zero elems).
+
+    Returns:
+        The rank of the matrix.
+    """
+
+    new_mat = finite_field_gauss_jordan_elimination(mat, p)
+    # We compute the rank by summing the diagonal elements after 
+    # Gauss-Jordan elimination
+    rank = np.sum(np.diag(new_mat))
+    return int(rank)
+
+
+def gauss_jordan_elimination(
+        mat: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """Return the reduced row-echelon form (RREF) of ``mat`` over the 
+    real numbers.
+
+    This performs Gauss-Jordan elimination: each pivot is normalized to 1
+    and the pivot column is eliminated in all other rows. 
+    The resulting RREF is unique. Note that if the matrix is 
+    full-rank, the RREF will be the identity matrix.
+
+    Args:
+        mat: Numpy array representing the matrix. The array is copied
+            and not mutated.
+
+    Returns:
+        A new numpy array containing the RREF of ``mat``.
+    """
+
+    num_rows, num_cols = mat.shape
+    mat = mat.copy()
+    row = 0
+    for col in range(num_cols):
+        if row >= num_rows:
+            break
+        pivot_rows = np.where(mat[row:, col] != 0)[0]
+        if len(pivot_rows) == 0:
+            continue
+        pivot_row = pivot_rows[0] + row
+        if pivot_row != row:
+            mat[[row, pivot_row]] = mat[[pivot_row, row]]
+        inv_pivot = 1 / mat[row, col]
+        mat[row] = (mat[row] * inv_pivot)
+        for r in range(num_rows):
+            if r != row and mat[r, col] != 0:
+                mat[r] = (mat[r] - mat[r, col] * mat[row])
+        row += 1
+    return mat
+
+def matrix_rank(
+        mat: NDArray[np.float64]  
+) -> int:
+    """Return the rank of ``mat`` over the real numbers.
+
+    Args:
+        mat: Numpy array representing the matrix. The array is copied
+            and not mutated.
+
+    Returns:
+        The rank of the matrix.
+    """
+
+    new_mat = gauss_jordan_elimination(mat)
+    # We compute the rank by summing the diagonal elements after 
+    # Gauss-Jordan elimination
+    rank = np.sum(np.diag(new_mat))
+    return int(rank)
+
+
+
+
+
+
+
+

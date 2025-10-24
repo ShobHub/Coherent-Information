@@ -212,7 +212,7 @@ Classifier: Operating System :: OS Independent
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: numpy>=2.3.0
+Requires-Dist: numpy
 Dynamic: license-file
 
 Repository for the calculation of the coherent information in stabilizer codes

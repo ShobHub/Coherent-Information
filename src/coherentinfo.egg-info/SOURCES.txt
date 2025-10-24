@@ -2,9 +2,11 @@ LICENSE
 README.md
 pyproject.toml
 src/coherentinfo/__init__.py
+src/coherentinfo/linalg.py
 src/coherentinfo/moebius.py
 src/coherentinfo.egg-info/PKG-INFO
 src/coherentinfo.egg-info/SOURCES.txt
 src/coherentinfo.egg-info/dependency_links.txt
 src/coherentinfo.egg-info/requires.txt
 src/coherentinfo.egg-info/top_level.txt
+tests/test_moebius.py
