@@ -1,7 +1,7 @@
 # Tests for the generation of the Moebius code
 
 import pytest
-from coherentinfo.moebius import build_moebius_code_vertex
+from coherentinfo.moebius import MoebiusCode
 import numpy as np
 from typing import List, Tuple
 from numpy.typing import NDArray
@@ -13,15 +13,18 @@ def moebius_code_vertex_example(
     examples = []
 
     # Example 1: length=5, width=3
-    h_z1, l_z1 = build_moebius_code_vertex(5, 3)
+    moebius_code_1 = MoebiusCode(length=5, width=3, d=2)
+    h_z1, l_z1 = moebius_code_1.h_z, moebius_code_1.l_z
     examples.append((h_z1, l_z1))
 
     # Example 2: length=7, width=9
-    h_z2, l_z2 = build_moebius_code_vertex(7, 9)
+    moebius_code_2 = MoebiusCode(length=7, width=9, d=2)
+    h_z2, l_z2 = moebius_code_2.h_z, moebius_code_2.l_z
     examples.append((h_z2, l_z2))
 
     # Example 3: length=3, width=15
-    h_z3, l_z3 = build_moebius_code_vertex(3, 15)
+    moebius_code_3 = MoebiusCode(length=3, width=15, d=2)
+    h_z3, l_z3 = moebius_code_3.h_z, moebius_code_3.l_z
     examples.append((h_z3, l_z3))
 
     return examples
@@ -55,13 +58,14 @@ def test_invalid_parameters() -> None:
     ]
     for length, width in invalid_params:
         with pytest.raises(ValueError):
-            build_moebius_code_vertex(length, width)
+            MoebiusCode(length=length, width=width, d=2)
 
 def test_hz() -> None:
     """Test specific known values of the h_z matrix for a small Moebius code."""
     length = 5
     width = 3
-    h_z, _ = build_moebius_code_vertex(length, width)
+    moebius_code = MoebiusCode(length=length, width=width, d=2)
+    h_z, _ = moebius_code.h_z, moebius_code.l_z
 
     # Manually constructed expected h_z matrix for length=5, width=3
     expected_h_z = np.zeros([10, 25], dtype=np.int8)
