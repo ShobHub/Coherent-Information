@@ -51,8 +51,8 @@ class MoebiusCode:
         self.num_plaquette_checks = length * width
         # Note that the plaquette checks are not independent, 
         # but we will write all of them anyway to test the implementation
-        self.h_z, self.l_z = self.build_moebius_code_vertex()
-
+        self.h_z = self.build_moebius_code_vertex()
+        self.logical_z = self.get_logical_z()
       
 
     def index_h(self, y: int, x: int) -> int:
@@ -103,12 +103,11 @@ class MoebiusCode:
 
     def build_moebius_code_vertex(
             self
-            ) -> Tuple[NDArray, NDArray]:
-        """ Generates the Moebius code vertex checks and logical operators.
+            ) -> NDArray:
+        """ Generates the Moebius code vertex checks.
         
         Returns:
             h_z: The Z-check matrix
-            l_z: The logical Z operator
         """
 
         # Z-check matrix
@@ -147,10 +146,35 @@ class MoebiusCode:
 
         h_z = np.array(rows, dtype=np.int8)
 
+        return h_z
+    
+    def get_logical_z(
+            self
+    ) -> NDArray:
+        """ Returns the logical Z operator.
+
+        Returns:
+            l_z: The logical Z operator
+        """
+
         # Logical Z along vertical edges in second row
-        l_z = np.zeros(self.num_edges, dtype=np.int8)
+        logical_z = np.zeros(self.num_edges, dtype=np.int8)
         y0 = self.width // 2
         for x in range(self.length):
-            l_z[self.index_v(y0, x)] = 1
+            logical_z[self.index_v(y0, x)] = 1
+        return logical_z
 
-        return h_z, l_z
+    def build_moebius_code_plaquette(
+            self
+    ):
+        pass
+
+    def build_vertex_destabilizers(
+            self
+    ):
+        pass
+
+    def build_plaquette_destabilizers(
+            self
+    ):
+        pass
