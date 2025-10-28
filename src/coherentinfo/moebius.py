@@ -103,7 +103,7 @@ class MoebiusCode:
 
     def build_moebius_code_vertex(
             self
-            ) -> NDArray:
+    ) -> NDArray:
         """ Generates the Moebius code vertex checks.
         
         Returns:
@@ -166,8 +166,46 @@ class MoebiusCode:
 
     def build_moebius_code_plaquette(
             self
-    ):
-        pass
+    ) -> NDArray:
+        """ Generates the Moebius code plaquette checks.
+        
+        Returns:
+            h_x: The X-check matrix
+        """
+
+        # Z-check matrix
+        rows = []
+        # Note that differently than the vertex checks, here
+        # the -1 are relevant for the twisted boundarys
+        for y in range(self.width):
+            for x in range(self.length):
+                row = np.zeros(self.num_edges, dtype=np.int8)
+                if y == 0:
+                    pass
+                elif y > 0 and y < (self.width - 1):
+                    if (x + 1) % self.length != 0:
+                        # This is for the central plaquettes, excluding top 
+                        # and bottom and the twisted boundary.
+                        # It passes a basic check with width=3 and length=5
+                        if (x + y) % 2 == 1:
+                            row[self.index_h(y - 1, x)] = -1
+                            row[self.index_h(y, x)] = -1
+                            row[self.index_v(y, x)] = 1
+                            row[self.index_v(y, x + 1)] = 1
+                        elif (x + y) % 2 == 0:
+                            row[self.index_h(y - 1, x)] = 1
+                            row[self.index_h(y, x)] = 1
+                            row[self.index_v(y, x)] = -1
+                            row[self.index_v(y, x + 1)] = -1  
+                elif y == (self.width - 1):
+                    pass
+                rows.append(row)
+        
+        h_x = np.array(rows, dtype=np.int8)
+
+        return h_x
+
+
 
     def build_vertex_destabilizers(
             self
