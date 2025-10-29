@@ -53,6 +53,7 @@ class MoebiusCode:
         # but we will write all of them anyway to test the implementation
         self.h_z = self.build_moebius_code_vertex()
         self.logical_z = self.get_logical_z()
+        self.h_x = self.build_moebius_code_plaquette()
       
 
     def index_h(self, y: int, x: int) -> int:

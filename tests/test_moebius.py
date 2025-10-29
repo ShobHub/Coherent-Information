@@ -83,3 +83,99 @@ def test_hz() -> None:
     assert np.all(h_z == expected_h_z) == True, \
             f"The H_Z matrix does not match the expected one."
 
+def test_hx() -> None:
+    """Test specific known values of the h_x matrix for a small Moebius code."""
+    length = 5
+    width = 3
+    moebius_code = MoebiusCode(length=length, width=width, d=2)
+    h_x = moebius_code.h_x
+
+    expected_h_x = np.zeros([moebius_code.num_plaquette_checks,
+               moebius_code.num_edges], dtype=np.int8)
+
+    # Plaquette 0
+    expected_h_x[0, 0] = 1
+    expected_h_x[0, 10] = -1
+    expected_h_x[0, 11] = -1
+
+    # Plaquette 1
+    expected_h_x[1, 1] = -1
+    expected_h_x[1, 11] = 1
+    expected_h_x[1, 12] = 1
+
+    # Plaquette 2
+    expected_h_x[2, 2] = 1
+    expected_h_x[2, 12] = -1
+    expected_h_x[2, 13] = -1
+
+    # Plaquette 3
+    expected_h_x[3, 3] = -1
+    expected_h_x[3, 13] = 1
+    expected_h_x[3, 14] = 1
+
+    # Plaquette 4 (twisted)
+    expected_h_x[4, 24] = -1
+    expected_h_x[4, 9] = 1
+    expected_h_x[4, 10] = -1
+
+    # Plaquette 5
+    expected_h_x[5, 0] = -1
+    expected_h_x[5, 5] = -1
+    expected_h_x[5, 15] = 1
+    expected_h_x[5, 16] = 1
+
+    # Plaquette 6
+    expected_h_x[6, 1] = 1
+    expected_h_x[6, 6] = 1
+    expected_h_x[6, 16] = -1
+    expected_h_x[6, 17] = -1
+
+    # Plaquette 7
+    expected_h_x[7, 2] = -1
+    expected_h_x[7, 7] = -1
+    expected_h_x[7, 17] = 1
+    expected_h_x[7, 18] = 1
+
+    # Plaquette 8
+    expected_h_x[8, 3] = 1
+    expected_h_x[8, 8] = 1
+    expected_h_x[8, 18] = -1
+    expected_h_x[8, 19] = -1
+
+    # Plaquette 9 (twisted)
+    expected_h_x[9, 4] = -1
+    expected_h_x[9, 9] = -1
+    expected_h_x[9, 19] = 1
+    expected_h_x[9, 15] = 1
+
+    # Plaquette 10
+    expected_h_x[10, 5] = 1
+    expected_h_x[10, 20] = -1
+    expected_h_x[10, 21] = -1
+
+    # Plaquette 11
+    expected_h_x[11, 6] = -1
+    expected_h_x[11, 21] = 1
+    expected_h_x[11, 22] = 1
+
+    # Plaquette 12
+    expected_h_x[12, 7] = 1
+    expected_h_x[12, 22] = -1
+    expected_h_x[12, 23] = -1
+
+    # Plaquette 13
+    expected_h_x[13, 8] = -1
+    expected_h_x[13, 23] = 1
+    expected_h_x[13, 24] = 1
+
+    # Plaquette 14 (twisted)
+    expected_h_x[14, 4] = 1
+    expected_h_x[14, 14] = -1
+    expected_h_x[14, 20] = -1
+
+    assert np.all(h_x == expected_h_x) == True, \
+            f"The H_X matrix does not match the expected one."
+
+
+
+
