@@ -191,7 +191,7 @@ class MoebiusCode:
                             row[self.index_v(0, x)] = 1 
                             row[self.index_v(0, x + 1)] = 1
                     else:
-                        row[self.index_h(self.width - 2, self.length - 1)] = +1
+                        row[self.index_h(self.width - 2, self.length - 1)] = 1
                         row[self.index_v(0, 0)] = -1 
                         row[self.index_v(self.width - 1, self.length - 1)] = -1
 
@@ -223,7 +223,21 @@ class MoebiusCode:
                             row[self.index_v(y, 0)] = -1 
                             row[self.index_v(self.width - y -1, x)] = -1           
                 else:
-                    pass
+                    if (x + 1) % self.length != 0:
+                        if x % 2 == 0:
+                            row[self.index_h(self.width - 2, x)] = 1
+                            row[self.index_v(self.width - 1, x)] = -1 
+                            row[self.index_v(self.width - 1, x + 1)] = -1
+                        else:
+                            row[self.index_h(self.width - 2, x)] = -1
+                            row[self.index_v(self.width - 1, x)] = 1 
+                            row[self.index_v(self.width - 1, x + 1)] = 1
+                    else:
+                        row[self.index_h(0, self.length - 1)] = 1
+                        row[self.index_v(self.width - 1, 0)] = -1 
+                        row[self.index_v(0, self.length - 1)] = -1
+
+                    
                 rows.append(row)
         
         h_x = np.array(rows, dtype=np.int8)
