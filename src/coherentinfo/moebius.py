@@ -196,7 +196,19 @@ class MoebiusCode:
                             row[self.index_h(y - 1, x)] = 1
                             row[self.index_h(y, x)] = 1
                             row[self.index_v(y, x)] = -1
-                            row[self.index_v(y, x + 1)] = -1  
+                            row[self.index_v(y, x + 1)] = -1
+                    else:
+                        # This is for the twisted boundary plaquettes
+                        if (x + y) % 2 == 1:
+                            row[self.inverted_index_h(y, x)] = -1
+                            row[self.inverted_index_h(y - 1, x)] = -1
+                            row[self.index_v(y, 0)] = 1 
+                            row[self.index_v(self.width - y - 1, x)] = 1 
+                        if (x + y) % 2 == 0:
+                            row[self.inverted_index_h(y, x)] = 1
+                            row[self.inverted_index_h(y - 1, x)] = 1
+                            row[self.index_v(y, 0)] = -1 
+                            row[self.index_v(self.width - y -1, x)] = -1           
                 elif y == (self.width - 1):
                     pass
                 rows.append(row)
