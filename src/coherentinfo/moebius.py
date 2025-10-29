@@ -96,8 +96,8 @@ class MoebiusCode:
         Returns:
             Index associated with the edge.
         """
-        # if x >= length or y >= width:
-        #     raise ValueError("Coordinates out of bounds.")
+        if x >= self.length or y >= self.width:
+            raise ValueError("Coordinates out of bounds.")
         num_h_edges = self.length * (self.width - 1)  # horizontal edges
         return num_h_edges + y * self.length + x
 
@@ -181,7 +181,20 @@ class MoebiusCode:
             for x in range(self.length):
                 row = np.zeros(self.num_edges, dtype=np.int8)
                 if y == 0:
-                    pass
+                    if (x + 1) % self.length != 0:
+                        if x % 2 == 0:
+                            row[self.index_h(0, x)] = 1
+                            row[self.index_v(0, x)] = -1 
+                            row[self.index_v(0, x + 1)] = -1
+                        else:
+                            row[self.index_h(0, x)] = -1
+                            row[self.index_v(0, x)] = 1 
+                            row[self.index_v(0, x + 1)] = 1
+                    else:
+                        row[self.index_h(self.width - 2, self.length - 1)] = +1
+                        row[self.index_v(0, 0)] = -1 
+                        row[self.index_v(self.width - 1, self.length - 1)] = -1
+
                 elif y > 0 and y < (self.width - 1):
                     if (x + 1) % self.length != 0:
                         # This is for the central plaquettes, excluding top 
@@ -192,7 +205,7 @@ class MoebiusCode:
                             row[self.index_h(y, x)] = -1
                             row[self.index_v(y, x)] = 1
                             row[self.index_v(y, x + 1)] = 1
-                        elif (x + y) % 2 == 0:
+                        else:
                             row[self.index_h(y - 1, x)] = 1
                             row[self.index_h(y, x)] = 1
                             row[self.index_v(y, x)] = -1
@@ -209,7 +222,7 @@ class MoebiusCode:
                             row[self.inverted_index_h(y - 1, x)] = 1
                             row[self.index_v(y, 0)] = -1 
                             row[self.index_v(self.width - y -1, x)] = -1           
-                elif y == (self.width - 1):
+                else:
                     pass
                 rows.append(row)
         
