@@ -41,7 +41,16 @@ def test_vertex_shapes(moebius_code_vertex_example) -> None:
         assert l_z.shape == (expected_num_edges,), \
             f"Fixture example #{idx} produced unexpected l_z shape"
 
-def test_commutation(moebius_code_vertex_example) -> None:
+def test_commutation() -> None:
+    width = 5
+    length = 9
+    moebius_code = MoebiusCode(length=length, width=width, d=2)
+    h_z = moebius_code.h_z
+    h_x = moebius_code.h_x
+    assert np.count_nonzero(h_x @ h_z.T) == 0, \
+        f"The stabilizers do not commute for length={length}, width={width}"
+
+def test_logical_stab_commutation(moebius_code_vertex_example) -> None:
     """Test that the logical operators commute with the stabilizers."""
     for idx, (h_z, logical_z) in enumerate(moebius_code_vertex_example):
         commutation = np.mod(np.sum(h_z @ logical_z), 2)
