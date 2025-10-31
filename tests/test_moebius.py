@@ -24,6 +24,14 @@ def moebius_code_example(
     moebius_code_3 = MoebiusCode(length=11, width=21, d=72)
     examples.append((moebius_code_3))
 
+    # Example 4: length=11, width=27
+    moebius_code_4 = MoebiusCode(length=17, width=27, d=44)
+    examples.append((moebius_code_4))
+
+    # Example 5: length=5, width=45
+    moebius_code_5 = MoebiusCode(length=5, width=45, d=102)
+    examples.append((moebius_code_5))
+
     return examples
 
 def test_vertex_shapes(moebius_code_example) -> None:
@@ -68,6 +76,16 @@ def test_logical_stab_commutation(moebius_code_example) -> None:
         commutation_x = np.count_nonzero(np.mod(h_z @ logical_x, d))
         assert commutation_x == 0, \
             f"Logical X operator does not commute with stabilizers in example #{idx}"
+
+def test_logical_commutation(moebius_code_example) -> None:
+    """Test that the logical X and Z operators anticommute."""
+    for idx, (moebius_code) in enumerate(moebius_code_example):
+        logical_x = moebius_code.logical_x
+        logical_z = moebius_code.logical_z
+        d = moebius_code.d
+        commutation = np.mod(logical_x @ logical_z, d)
+        assert commutation == np.int8(d / 2), \
+            f"Logical X and Z operators do not anticommute in example #{idx}"
 
 def test_invalid_parameters() -> None:
     """Test that invalid parameters raise ValueError."""
