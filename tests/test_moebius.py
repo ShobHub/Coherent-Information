@@ -7,53 +7,58 @@ from typing import List, Tuple
 from numpy.typing import NDArray
 
 @pytest.fixture
-def moebius_code_vertex_example(
+def moebius_code_example(
 ) -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
     """Provides example Moebius code matrices for testing."""
     examples = []
 
     # Example 1: length=5, width=3
     moebius_code_1 = MoebiusCode(length=5, width=3, d=2)
-    h_z1, logical_z1 = moebius_code_1.h_z, moebius_code_1.logical_z
-    examples.append((h_z1, logical_z1))
+    examples.append((moebius_code_1))
 
     # Example 2: length=7, width=9
     moebius_code_2 = MoebiusCode(length=7, width=9, d=2)
-    h_z2, logical_z2 = moebius_code_2.h_z, moebius_code_2.logical_z
-    examples.append((h_z2, logical_z2))
+    examples.append((moebius_code_2))
 
-    # Example 3: length=3, width=15
-    moebius_code_3 = MoebiusCode(length=3, width=15, d=2)
-    h_z3, logical_z3 = moebius_code_3.h_z, moebius_code_3.logical_z
-    examples.append((h_z3, logical_z3))
+    # Example 3: length=11, width=21
+    moebius_code_3 = MoebiusCode(length=11, width=21, d=2)
+    examples.append((moebius_code_3))
 
     return examples
 
-def test_vertex_shapes(moebius_code_vertex_example) -> None:
+def test_vertex_shapes(moebius_code_example) -> None:
     """Test that the generated matrices have the correct shapes."""
     # The fixture provides example (h_z, l_z, num_edges) tuples.
-    for idx, (h_z, l_z) in enumerate(moebius_code_vertex_example):
+    for idx, (moebius_code) in enumerate(moebius_code_example):
         # derive expected sizes from returned matrices
-        expected_num_checks, expected_num_edges = h_z.shape 
+        expected_num_edges = moebius_code.num_edges
+        expected_num_vertex_checks = moebius_code.num_vertex_checks
+        expected_num_plaquette_checks = moebius_code.num_plaquette_checks
 
-        assert h_z.shape == (expected_num_checks, expected_num_edges), \
+        h_z = moebius_code.h_z
+        l_z = moebius_code.logical_z
+        h_x = moebius_code.h_x
+
+        assert h_z.shape == (expected_num_vertex_checks, expected_num_edges), \
             f"Fixture example #{idx} produced unexpected h_z shape"
         assert l_z.shape == (expected_num_edges,), \
             f"Fixture example #{idx} produced unexpected l_z shape"
+        assert h_x.shape == (expected_num_plaquette_checks, expected_num_edges), \
+            f"Fixture example #{idx} produced unexpected h_x shape"
 
-def test_commutation() -> None:
-    width = 5
-    length = 9
-    moebius_code = MoebiusCode(length=length, width=width, d=2)
-    h_z = moebius_code.h_z
-    h_x = moebius_code.h_x
-    assert np.count_nonzero(h_x @ h_z.T) == 0, \
-        f"The stabilizers do not commute for length={length}, width={width}"
+def test_commutation(moebius_code_example) -> None:
+    for idx, (moebius_code) in enumerate(moebius_code_example):
+        h_z = moebius_code.h_z
+        h_x = moebius_code.h_x
+        assert np.count_nonzero(h_x @ h_z.T) == 0, \
+            f"The stabilizers do not commute for example #{idx}."
 
-def test_logical_stab_commutation(moebius_code_vertex_example) -> None:
+def test_logical_stab_commutation(moebius_code_example) -> None:
     """Test that the logical operators commute with the stabilizers."""
-    for idx, (h_z, logical_z) in enumerate(moebius_code_vertex_example):
-        commutation = np.mod(np.sum(h_z @ logical_z), 2)
+    for idx, (moebius_code) in enumerate(moebius_code_example):
+        h_x = moebius_code.h_x
+        logical_z = moebius_code.logical_z
+        commutation = np.mod(np.sum(h_x @ logical_z), 2)
         assert commutation == 0, \
             f"Logical operator does not commute with stabilizers in example #{idx}"
 
