@@ -13,15 +13,15 @@ def moebius_code_example(
     examples = []
 
     # Example 1: length=5, width=3
-    moebius_code_1 = MoebiusCode(length=5, width=3, d=2)
+    moebius_code_1 = MoebiusCode(length=5, width=3, d=8)
     examples.append((moebius_code_1))
 
     # Example 2: length=7, width=9
-    moebius_code_2 = MoebiusCode(length=7, width=9, d=2)
+    moebius_code_2 = MoebiusCode(length=7, width=9, d=16)
     examples.append((moebius_code_2))
 
     # Example 3: length=11, width=21
-    moebius_code_3 = MoebiusCode(length=11, width=21, d=2)
+    moebius_code_3 = MoebiusCode(length=11, width=21, d=72)
     examples.append((moebius_code_3))
 
     return examples
@@ -58,9 +58,16 @@ def test_logical_stab_commutation(moebius_code_example) -> None:
     for idx, (moebius_code) in enumerate(moebius_code_example):
         h_x = moebius_code.h_x
         logical_z = moebius_code.logical_z
-        commutation = np.mod(np.sum(h_x @ logical_z), 2)
-        assert commutation == 0, \
-            f"Logical operator does not commute with stabilizers in example #{idx}"
+        d = moebius_code.d
+        commutation_z = np.count_nonzero(np.mod(h_x @ logical_z, d))
+        assert commutation_z == 0, \
+            f"Logical Z operator does not commute with stabilizers in example #{idx}"
+        
+        h_z = moebius_code.h_z
+        logical_x = moebius_code.logical_x
+        commutation_x = np.count_nonzero(np.mod(h_z @ logical_x, d))
+        assert commutation_x == 0, \
+            f"Logical X operator does not commute with stabilizers in example #{idx}"
 
 def test_invalid_parameters() -> None:
     """Test that invalid parameters raise ValueError."""

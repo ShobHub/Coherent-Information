@@ -9,12 +9,7 @@ class MoebiusCode:
     """ Class representing the Moebius code.
     """
 
-    def __init__(
-            self,
-            length: int, 
-            width: int,
-            d: int      
-    ):
+    def __init__(self, length: int, width: int, d: int = 2):
         """ Initializes the Moebius code.
 
         Args:
@@ -22,7 +17,7 @@ class MoebiusCode:
                 along the length)
             width: Width of the Moebius strip (number of vertices 
                 along the width)
-            d: qudit dimension
+            d: qudit dimension. It is relevant for the logical operators.
         
         Returns:
             Index associated with the edge.
@@ -36,7 +31,7 @@ class MoebiusCode:
             raise ValueError("Length must be odd for the Moebius code.")
         
         if width % 2 == 0:
-            raise ValueError("Width must be odd for the Moebius code")
+            raise ValueError("Width must be odd for the Moebius code.")
         
         if d % 2 != 0:
             raise ValueError("Dimension d must be even for the Moebius code")
@@ -52,8 +47,10 @@ class MoebiusCode:
         # Note that the plaquette checks are not independent, 
         # but we will write all of them anyway to test the implementation
         self.h_z = self.build_moebius_code_vertex()
-        self.logical_z = self.get_logical_z()
         self.h_x = self.build_moebius_code_plaquette()
+        self.logical_z = self.get_logical_z()
+        self.logical_x = self.get_logical_x()
+        
       
 
     def index_h(self, y: int, x: int) -> int:
@@ -148,22 +145,6 @@ class MoebiusCode:
         h_z = np.array(rows, dtype=np.int8)
 
         return h_z
-    
-    def get_logical_z(
-            self
-    ) -> NDArray:
-        """ Returns the logical Z operator.
-
-        Returns:
-            l_z: The logical Z operator
-        """
-
-        # Logical Z along vertical edges in second row
-        logical_z = np.zeros(self.num_edges, dtype=np.int8)
-        y0 = self.width // 2
-        for x in range(self.length):
-            logical_z[self.index_v(y0, x)] = 1
-        return logical_z
 
     def build_moebius_code_plaquette(
             self
@@ -244,8 +225,45 @@ class MoebiusCode:
         h_x = np.array(rows, dtype=np.int8)
 
         return h_x
+    
+    def get_logical_z(
+            self
+    ) -> NDArray:
+        """ Returns the logical Z operator. This is defined as in the notes
+        Z_logical = Z_1^{d/2} \tensor ... \tensor Z_length^{d/2}
+        along the central line of vertical edges. 
 
+        Returns:
+            l_z: The logical Z operator
+        """
 
+        # Logical Z along vertical edges in second row
+        logical_z = np.zeros(self.num_edges, dtype=np.int8)
+        y0 = self.width // 2
+        for x in range(self.length):
+            logical_z[self.index_v(y0, x)] = np.int8(self.d / 2)
+        return logical_z
+    
+    def get_logical_x(
+            self
+    ) -> NDArray:
+        """ Returns the logical X operator. This is defined as in the notes
+        X_logical = X_1 \tensor X_2^{-1} \tensor ... \tensor X_width
+        along the first columns of vertical qudits. 
+
+        Returns:
+            l_x: The logical X operator
+        """
+
+        # Logical X along horizontal edges in second row
+        logical_x = np.zeros(self.num_edges, dtype=np.int8)
+        for y in range(self.width):
+            if y % 2 == 0:
+                logical_x[self.index_v(y, 0)] = -1
+            else:
+                logical_x[self.index_v(y, 0)] = 1
+        return logical_x
+    
 
     def build_vertex_destabilizers(
             self
