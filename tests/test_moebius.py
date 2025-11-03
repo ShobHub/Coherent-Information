@@ -7,8 +7,7 @@ from typing import List, Tuple
 from numpy.typing import NDArray
 
 @pytest.fixture
-def moebius_code_example(
-) -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
+def moebius_code_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
     """Provides example Moebius code matrices for testing."""
     examples = []
 
@@ -214,7 +213,16 @@ def test_hx() -> None:
 
     assert np.all(h_x == expected_h_x) == True, \
             f"The H_X matrix does not match the expected one."
+    
+def test_plaquette_constraint(moebius_code_example):
+    """Test that the product of all the plaquette stabilizers to the power 
+    of d/2 is identity."""
 
-
-
-
+    for idx, (moebius_code) in enumerate(moebius_code_example):
+        h_x = moebius_code.h_x
+        d = moebius_code.d
+        sum_of_rows = np.mod(np.int8(d / 2) * np.sum(h_x, axis=0), d)
+        assert np.count_nonzero(sum_of_rows) == 0, \
+                f"The H_X matrix does not satisfy the plaquette constraint \n " \
+                f"in example #{idx}."
+                
