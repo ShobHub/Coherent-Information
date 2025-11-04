@@ -48,8 +48,11 @@ class MoebiusCode:
         # but we will write all of them anyway to test the implementation
         self.h_z = self.build_moebius_code_vertex()
         self.h_x = self.build_moebius_code_plaquette()
+
         self.logical_z = self.get_logical_z()
         self.logical_x = self.get_logical_x()
+
+        self.vertex_destab = self.build_vertex_destabilizers()
         
       
 
@@ -267,10 +270,52 @@ class MoebiusCode:
 
     def build_vertex_destabilizers(
             self
-    ):
+    ) -> NDArray:
+        """ Returns the vertex destabilizers. Remember that the vertex 
+        destabilizers are associated with X-type errors. 
+
+        Returns:
+            vertex_destab: The matrix of the vertex destabilizers 
+        """
+
+        rows = []
+        
+        for y in range(self.width - 1):
+            for x in range(self.length):
+                row = np.zeros(self.num_edges, dtype=np.int8)
+                if y < (self.width - 1) / 2:
+                    for y_prime in range(y + 1):
+                        if (x + y_prime) % 2 == 0:
+                            row[self.index_v(y_prime, x)] = 1
+                        else:
+                            row[self.index_v(y_prime, x)] = -1
+                else:
+                    for y_prime in range(y + 1, self.width):
+                        if (x + y_prime) % 2 == 0:
+                            row[self.index_v(y_prime, x)] = -1
+                        else:
+                            row[self.index_v(y_prime, x)] = 1
+                rows.append(row)
+
+
+        vertex_destab = np.array(rows, dtype=np.int8)
+
+        return vertex_destab
+
+
+
+    def build_qubit_plaquette_destabilizers(
+            self
+    ) -> NDArray:
+        """ Returns the plaquette destabilizers assuming qubits as fundamental 
+        system on the edges. Remember that the vertex destabilizers are 
+        associated with Z-type errors. The more general case of qudits 
+        with d = 2 q and q a prime can be also obtained from the basic qubit 
+        case. 
+
+        Returns:
+            plaquette_destab: The matrix of the plaquette destabilizers 
+        """
+
         pass
 
-    def build_plaquette_destabilizers(
-            self
-    ):
-        pass

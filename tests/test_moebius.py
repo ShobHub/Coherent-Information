@@ -225,4 +225,23 @@ def test_plaquette_constraint(moebius_code_example):
         assert np.count_nonzero(sum_of_rows) == 0, \
                 f"The H_X matrix does not satisfy the plaquette constraint \n " \
                 f"in example #{idx}."
+
+def test_vertex_destabilizers(moebius_code_example):
+    """Test that the vertex destabilizers (X-type) anticommute only with the 
+    corresponding vertex destabilizer (Z-type) and commute with the logical
+     Z operator """
+    
+    for idx, (moebius_code) in enumerate(moebius_code_example):
+        h_z = moebius_code.h_z
+        vertex_destab = moebius_code.vertex_destab 
+        id_mat = np.identity(moebius_code.num_vertex_checks)
+        logical_z = moebius_code.logical_z
+        assert np.count_nonzero(h_z @ vertex_destab.T - id_mat) == 0, \
+                f"The vertex destabilizers and checks do not have the \n" \
+                f"correct commutation relation in example #{idx}."
+        assert np.count_nonzero(logical_z @ vertex_destab.T) == 0, \
+                f"The vertex destabilizers do not commute with the \n" \
+                f"logical Z in example #{idx}."
+        
+
                 
