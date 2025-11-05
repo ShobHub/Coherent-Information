@@ -38,19 +38,19 @@ def test_vertex_shapes(moebius_code_example) -> None:
     # The fixture provides example (h_z, l_z, num_edges) tuples.
     for idx, (moebius_code) in enumerate(moebius_code_example):
         # derive expected sizes from returned matrices
-        expected_num_edges = moebius_code.num_edges
-        expected_num_vertex_checks = moebius_code.num_vertex_checks
-        expected_num_plaquette_checks = moebius_code.num_plaquette_checks
+        exp_num_edges = moebius_code.num_edges
+        exp_num_vertex_checks = moebius_code.num_vertex_checks
+        exp_num_plaquette_checks = moebius_code.num_plaquette_checks
 
         h_z = moebius_code.h_z
         l_z = moebius_code.logical_z
         h_x = moebius_code.h_x
 
-        assert h_z.shape == (expected_num_vertex_checks, expected_num_edges), \
+        assert h_z.shape == (exp_num_vertex_checks, exp_num_edges), \
             f"Fixture example #{idx} produced unexpected h_z shape"
-        assert l_z.shape == (expected_num_edges,), \
+        assert l_z.shape == (exp_num_edges,), \
             f"Fixture example #{idx} produced unexpected l_z shape"
-        assert h_x.shape == (expected_num_plaquette_checks, expected_num_edges), \
+        assert h_x.shape == (exp_num_plaquette_checks, exp_num_edges), \
             f"Fixture example #{idx} produced unexpected h_x shape"
 
 def test_commutation(moebius_code_example) -> None:
@@ -68,8 +68,8 @@ def test_logical_stab_commutation(moebius_code_example) -> None:
         d = moebius_code.d
         commutation_z = np.count_nonzero(np.mod(h_x @ logical_z, d))
         assert commutation_z == 0, \
-            f"Logical Z operator does not commute with stabilizers in example #{idx}"
-        
+            f"Logical Z operator does not commute with stabilizers \n" \
+            f"in example #{idx}"
         h_z = moebius_code.h_z
         logical_x = moebius_code.logical_x
         commutation_x = np.count_nonzero(np.mod(h_z @ logical_x, d))
@@ -99,7 +99,8 @@ def test_invalid_parameters() -> None:
             MoebiusCode(length=length, width=width, d=2)
 
 def test_hz() -> None:
-    """Test specific known values of the h_z matrix for a small Moebius code."""
+    """Test specific known values of the h_z matrix for a small 
+    Moebius code."""
     length = 5
     width = 3
     moebius_code = MoebiusCode(length=length, width=width, d=2)
@@ -214,7 +215,7 @@ def test_hx() -> None:
     assert np.all(h_x == expected_h_x) == True, \
             f"The H_X matrix does not match the expected one."
     
-def test_plaquette_constraint(moebius_code_example):
+def test_plaquette_constraint(moebius_code_example) -> None:
     """Test that the product of all the plaquette stabilizers to the power 
     of d/2 is identity."""
 
@@ -223,10 +224,10 @@ def test_plaquette_constraint(moebius_code_example):
         d = moebius_code.d
         sum_of_rows = np.mod(np.int8(d / 2) * np.sum(h_x, axis=0), d)
         assert np.count_nonzero(sum_of_rows) == 0, \
-                f"The H_X matrix does not satisfy the plaquette constraint \n " \
-                f"in example #{idx}."
+                f"The H_X matrix does not satisfy the plaquette \n " \
+                f"constraint in example #{idx}."
 
-def test_vertex_destabilizers(moebius_code_example):
+def test_vertex_destabilizers(moebius_code_example) -> None:
     """Test that the vertex destabilizers (X-type) anticommute only with the 
     corresponding vertex destabilizer (Z-type) and commute with the logical
      Z operator """
@@ -236,12 +237,40 @@ def test_vertex_destabilizers(moebius_code_example):
         vertex_destab = moebius_code.vertex_destab 
         id_mat = np.identity(moebius_code.num_vertex_checks)
         logical_z = moebius_code.logical_z
-        assert np.count_nonzero(h_z @ vertex_destab.T - id_mat) == 0, \
+        res_h_z = np.count_nonzero(h_z @ vertex_destab.T - id_mat)
+        res_logical_com = np.count_nonzero(logical_z @ vertex_destab.T)
+        assert res_h_z == 0, \
                 f"The vertex destabilizers and checks do not have the \n" \
                 f"correct commutation relation in example #{idx}."
-        assert np.count_nonzero(logical_z @ vertex_destab.T) == 0, \
+        assert res_logical_com == 0, \
                 f"The vertex destabilizers do not commute with the \n" \
                 f"logical Z in example #{idx}."
+
+def test_plaquette_destabilizer_qubit(moebius_code_example) -> None:
+    """Test that the plaquette destabilizers for the qubit case (Z-type)
+    anticommute only with the corresponding plaquette stabilizer (X-type)
+    and commute with the logical X operator"""
+
+    for idx, (moebius_code) in enumerate(moebius_code_example):
+        h_x_qubit = moebius_code.h_x_qubit 
+        plaquette_destab_qubit = moebius_code.plaquette_destab_qubit
+        id_mat = np.identity(moebius_code.num_plaquette_checks - 1)
+        logical_x = moebius_code.logical_x
+        res_h_x_com = \
+            np.count_nonzero((h_x_qubit @ plaquette_destab_qubit.T % 2) - 
+                             id_mat) 
+        
+        res_logical_com = \
+            np.count_nonzero(logical_x @ plaquette_destab_qubit.T % 2) 
+        assert res_h_x_com == 0, \
+                f"The plaquette destabilizers and checks in the qubit \n" \
+                f"case do not have the correct commutation relation \n" \
+                f"in example #{idx}."
+        assert res_logical_com == 0, \
+                f"The plaquette destabilizers in the qubit case do not \n" \
+                f"commute with the logical X in example #{idx}."
+
+
         
 
                 

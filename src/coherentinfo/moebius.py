@@ -49,10 +49,24 @@ class MoebiusCode:
         self.h_z = self.build_moebius_code_vertex()
         self.h_x = self.build_moebius_code_plaquette()
 
+        # We directly store also the qubit version of the H_X and H_Z matrices
+        # with binary entries. In this case, for the H_X matrix we can 
+        # directly pop one of the rows since we know that for qubits 
+        # the product of the plaquette stabilizers is the identity which 
+        # translates to the sum of the rows of H_X being zero mod 2. 
+        # We conventionally pop the first row, which corresponds to the 
+        # bottom left plaquette
+
+        self.h_z_qubit = self.h_z % 2
+        self.h_x_qubit = np.delete(self.h_x, 0, axis=0) % 2
+
+        # Logicals
         self.logical_z = self.get_logical_z()
         self.logical_x = self.get_logical_x()
 
+        # Destabilizers
         self.vertex_destab = self.build_vertex_destabilizers()
+        self.plaquette_destab_qubit = self.build_plaquette_destabilizers_qubit()
         
       
 
@@ -72,8 +86,8 @@ class MoebiusCode:
         return y * self.length +  x
 
     def inverted_index_h(self, y: int, x: int) -> int:
-        """ Gives the inverted index of a horizontal edge. Useful for the twisted
-        boundaries.
+        """ Gives the inverted index of a horizontal edge. Useful for the 
+        twisted boundaries.
 
         Args:
             y: y coordinate
@@ -304,7 +318,7 @@ class MoebiusCode:
 
 
 
-    def build_qubit_plaquette_destabilizers(
+    def build_plaquette_destabilizers_qubit(
             self
     ) -> NDArray:
         """ Returns the plaquette destabilizers assuming qubits as fundamental 
@@ -314,8 +328,39 @@ class MoebiusCode:
         case. 
 
         Returns:
-            plaquette_destab: The matrix of the plaquette destabilizers 
+            plaquette_destab_qubit: The matrix of the qubit plaquette 
+                destabilizers
+
         """
 
-        pass
+        rows = []
+        for y in range(0, self.width):
+            for x in range(0, self.length):
+                row = np.zeros(self.num_edges, dtype=np.int8)
+                if (x + 1) != self.length:
+                    for x_prime in range(1, x + 1):
+                        row[self.index_v(0, x_prime)] = 1
+                    for y_prime in range(y):
+                        row[self.index_h(y_prime, x)] = 1
+                else:
+                    for x_prime in range(1, x):
+                        row[self.index_v(0, x_prime)] = 1
+                    for y_prime in range(self.width - 1 - y):
+                        row[self.index_h(y_prime, x - 1)] = 1
+                    row[self.index_v(self. width - 1 - y, x)] = 1
+
+                rows.append(row)
+
+        plaquette_destab_qubit = np.array(rows, dtype=np.int8)
+        plaquette_destab_qubit = np.delete(plaquette_destab_qubit, 0, axis=0)
+
+        return plaquette_destab_qubit
+
+            
+
+
+        
+        
+
+        
 
