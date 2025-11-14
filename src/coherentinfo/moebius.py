@@ -4,6 +4,7 @@ import numpy as np
 from typing import Tuple
 from numpy.typing import NDArray
 from functools import partial
+from coherentinfo.linalg import is_prime
 
 class MoebiusCode:
     """ Class representing the Moebius code.
@@ -67,6 +68,21 @@ class MoebiusCode:
         # Destabilizers
         self.vertex_destab = self.build_vertex_destabilizers()
         self.plaquette_destab_qubit = self.build_plaquette_destabilizers_qubit()
+        self._plaquette_destab = None
+    
+    @property
+    def plaquette_destab(self):
+        if self._plaquette_destab is not None:
+            return self._plaquette_destab
+        
+        result = self.build_plaquette_destabilizers()
+
+        if result is None:
+            print(f"INFO: The attribute 'plaquette_destab' is NOT \n" \
+                  f"set because d={self.d} is not 2 * q where q \n" \
+                  f"is an odd prime.")
+        return result
+        
         
       
 
@@ -131,7 +147,7 @@ class MoebiusCode:
         # for clarity and make sure that the coordinates are
         for y in range(self.width - 1):
             for x in range(self.length):
-                row = np.zeros(self.num_edges, dtype=np.int8)
+                row = np.zeros(self.num_edges, dtype=np.int16)
                 if x != 0:
                     if (x + y) % 2 == 0:
                         row[self.index_h(y, x)] = 1
@@ -159,7 +175,7 @@ class MoebiusCode:
                         row[self.index_v(y + 1, 0)] = -1
                         rows.append(row)
 
-        h_z = np.array(rows, dtype=np.int8)
+        h_z = np.array(rows, dtype=np.int16)
 
         return h_z
 
@@ -178,7 +194,7 @@ class MoebiusCode:
         # the -1 are relevant for the twisted boundarys
         for y in range(self.width):
             for x in range(self.length):
-                row = np.zeros(self.num_edges, dtype=np.int8)
+                row = np.zeros(self.num_edges, dtype=np.int16)
                 if y == 0:
                     if (x + 1) % self.length != 0:
                         if x % 2 == 0:
@@ -239,7 +255,7 @@ class MoebiusCode:
                     
                 rows.append(row)
         
-        h_x = np.array(rows, dtype=np.int8)
+        h_x = np.array(rows, dtype=np.int16)
 
         return h_x
     
@@ -255,10 +271,10 @@ class MoebiusCode:
         """
 
         # Logical Z along vertical edges in second row
-        logical_z = np.zeros(self.num_edges, dtype=np.int8)
+        logical_z = np.zeros(self.num_edges, dtype=np.int16)
         y0 = self.width // 2
         for x in range(self.length):
-            logical_z[self.index_v(y0, x)] = np.int8(self.d / 2)
+            logical_z[self.index_v(y0, x)] = np.int16(self.d / 2)
         return logical_z
     
     def get_logical_x(
@@ -273,7 +289,7 @@ class MoebiusCode:
         """
 
         # Logical X along horizontal edges in second row
-        logical_x = np.zeros(self.num_edges, dtype=np.int8)
+        logical_x = np.zeros(self.num_edges, dtype=np.int16)
         for y in range(self.width):
             if y % 2 == 0:
                 logical_x[self.index_v(y, 0)] = -1
@@ -296,7 +312,7 @@ class MoebiusCode:
         
         for y in range(self.width - 1):
             for x in range(self.length):
-                row = np.zeros(self.num_edges, dtype=np.int8)
+                row = np.zeros(self.num_edges, dtype=np.int16)
                 if y < (self.width - 1) / 2:
                     for y_prime in range(y + 1):
                         if (x + y_prime) % 2 == 0:
@@ -312,7 +328,7 @@ class MoebiusCode:
                 rows.append(row)
 
 
-        vertex_destab = np.array(rows, dtype=np.int8)
+        vertex_destab = np.array(rows, dtype=np.int16)
 
         return vertex_destab
 
@@ -336,7 +352,7 @@ class MoebiusCode:
         rows = []
         for y in range(0, self.width):
             for x in range(0, self.length):
-                row = np.zeros(self.num_edges, dtype=np.int8)
+                row = np.zeros(self.num_edges, dtype=np.int16)
                 if (x + 1) != self.length:
                     for x_prime in range(1, x + 1):
                         row[self.index_v(0, x_prime)] = 1
@@ -351,10 +367,31 @@ class MoebiusCode:
 
                 rows.append(row)
 
-        plaquette_destab_qubit = np.array(rows, dtype=np.int8)
+        plaquette_destab_qubit = np.array(rows, dtype=np.int16)
         plaquette_destab_qubit = np.delete(plaquette_destab_qubit, 0, axis=0)
 
         return plaquette_destab_qubit
+    
+    def build_plaquette_destabilizers(
+            self
+    ) -> NDArray:
+        """ Returns the plaquette destabilizers assuming  qudits 
+        with d = 2 q. This is simply obtained from the qubit case.
+
+        Returns:
+            plaquette_destab: The matrix of the qubit plaquette 
+                destabilizers
+        """
+
+        q = np.int16(self.d / 2)
+
+        if not is_prime(q) or q % 2 == 0:
+            return None
+        else:
+            return self.plaquette_destab_qubit * q
+
+
+        
 
             
 

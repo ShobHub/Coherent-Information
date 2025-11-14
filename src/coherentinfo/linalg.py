@@ -21,7 +21,7 @@ def is_prime(n: int) -> bool:
 
 def finite_field_gauss_jordan_elimination(
         mat: NDArray[np.int_],
-        p: int
+        p: int | np.int_
 ) -> NDArray[np.int_]:
     """Return the reduced row-echelon form (RREF) of ``mat`` over GF(p).
 
@@ -42,6 +42,7 @@ def finite_field_gauss_jordan_elimination(
         raise ValueError(f"Modulus p={p} is not prime; "
                          f"gauss_jordan_elimination requires a prime p.")
 
+    p = int(p)
     num_rows, num_cols = mat.shape
     # Converts the matrix to mod p
     mat = mat.copy() % p
