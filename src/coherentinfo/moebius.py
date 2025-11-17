@@ -68,18 +68,18 @@ class MoebiusCode:
         # Destabilizers
         self.vertex_destab = self.build_vertex_destabilizers()
         self.plaquette_destab_qubit = self.build_plaquette_destabilizers_qubit()
-        self._plaquette_destab = None
+        self._plaquette_destab_type_two = None
     
     @property
-    def plaquette_destab(self):
-        if self._plaquette_destab is not None:
-            return self._plaquette_destab
+    def plaquette_destab_type_two(self):
+        if self._plaquette_destab_type_two is not None:
+            return self._plaquette_destab_type_two
         
-        result = self.build_plaquette_destabilizers()
+        result = self.build_plaquette_destabilizers_type_two()
 
         if result is None:
-            print(f"INFO: The attribute 'plaquette_destab' is NOT \n" \
-                  f"set because d={self.d} is not 2 * q where q \n" \
+            print(f"INFO: The attribute 'plaquette_destab_type_two' \n" \
+                  f"is NOT set because d={self.d} is not 2 * p where p \n" \
                   f"is an odd prime.")
         return result
         
@@ -372,23 +372,23 @@ class MoebiusCode:
 
         return plaquette_destab_qubit
     
-    def build_plaquette_destabilizers(
+    def build_plaquette_destabilizers_type_two(
             self
     ) -> NDArray:
-        """ Returns the plaquette destabilizers assuming  qudits 
-        with d = 2 q. This is simply obtained from the qubit case.
+        """ Returns the plaquette destabilizers associated with the 
+        stabilizers S_j^X[2] assuming  qudits with d = 2 p and p odd prime. 
+        These can be simply obtained from the qubit case.
 
         Returns:
-            plaquette_destab: The matrix of the qubit plaquette 
-                destabilizers
+            The matrix of the qubit plaquette destabilizers of type two.
         """
 
-        q = np.int16(self.d / 2)
+        p = np.int16(self.d / 2)
 
-        if not is_prime(q) or q % 2 == 0:
+        if not is_prime(p) or p % 2 == 0:
             return None
         else:
-            return self.plaquette_destab_qubit * q
+            return self.plaquette_destab_qubit * p
 
 
         

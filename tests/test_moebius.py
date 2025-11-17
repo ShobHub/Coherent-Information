@@ -279,20 +279,21 @@ def test_q_not_odd_prime() -> None:
 
     for dim in invalid_dims:
         moebius_code = MoebiusCode(length=7, width=5, d=dim)
-        assert moebius_code.build_plaquette_destabilizers() == None, \
+        mat = moebius_code.build_plaquette_destabilizers_type_two()
+        assert mat is None, \
                 f"The plaquette destabilizers are not None as \n" \
                 f"expected for qudit dimension #{dim}"
 
         
 def test_plaquette_destabilizers(moebius_code_example) -> None:
-    """Test that the plaquette destabilizers (Z-type)
+    """Test that the plaquette destabilizers (Z-type) of type two
     anticommute only with the corresponding plaquette stabilizer (X-type)
     and commute with the logical X operator"""
 
     for idx, moebius_code in enumerate(moebius_code_example):
-        q = np.int16(moebius_code.d / 2)
-        h_x_eff = q * np.delete(moebius_code.h_x, 0, axis=0)
-        plaquette_destab = moebius_code.plaquette_destab
+        p = np.int16(moebius_code.d / 2)
+        h_x_eff = p * np.delete(moebius_code.h_x, 0, axis=0)
+        plaquette_destab = moebius_code.plaquette_destab_type_two
         id_mat = np.identity(moebius_code.num_plaquette_checks - 1)
         res_h_x_com = \
             np.count_nonzero((h_x_eff @ plaquette_destab.T % 2) - id_mat)
@@ -305,13 +306,13 @@ def test_rank(moebius_code_example) -> None:
     """Test that H_X matrix mod d has full rank over the finite field
     F_q with q = d / 2"""
     for idx, moebius_code in enumerate(moebius_code_example):
-        q = np.int16(moebius_code.d / 2)
+        p = np.int16(moebius_code.d / 2)
         h_x = moebius_code.h_x
         num_plaquette_checks = moebius_code.num_plaquette_checks 
-        rank_h_x = finite_field_matrix_rank(h_x % moebius_code.d, q)
+        rank_h_x = finite_field_matrix_rank(h_x % moebius_code.d, p)
         assert rank_h_x == num_plaquette_checks, \
                 f"The matrix H_X is not full rank over the finite field \n" \
-                f"q = d / 2 in example #{idx}."
+                f"p = d / 2 in example #{idx}."
         
 
 
