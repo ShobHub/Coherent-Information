@@ -4,6 +4,7 @@ import pytest
 from coherentinfo.linalg import (
     finite_field_gauss_jordan_elimination,
     finite_field_matrix_rank,
+    finite_field_inverse,
     gauss_jordan_elimination,
     matrix_rank,
     is_prime
@@ -24,7 +25,7 @@ def test_is_prime() -> None:
         assert not is_prime(n), f"{n} should not be prime"
 
 @pytest.fixture
-def example_integer_matrices() -> List[Tuple[NDArray[np.int_], int, NDArray[np.int_]]]:
+def example_finite_field_matrices() -> List[Tuple[NDArray[np.int_], int, NDArray[np.int_]]]:
     """Provides example matrices and moduli for testing."""
     examples = []
 
@@ -62,21 +63,49 @@ def example_integer_matrices() -> List[Tuple[NDArray[np.int_], int, NDArray[np.i
 
     return examples
 
+@pytest.fixture
+def example_invertible_finite_field_matrices() -> List[Tuple[NDArray[np.int_], int]]:
+    """Provides example invertible matrices and moduli for testing."""
+    examples = []
+
+    # Example 1
+    mat1 = np.array([[1, 2],
+                     [3, 4]])
+    p1 = 5
+
+    examples.append((mat1, p1))
+
+    # Example 2
+    mat2 = np.array([[2, 3, 1],
+                     [1, 0, 4],
+                     [4, 2, 5]])
+    p2 = 7
+    examples.append((mat2, p2))
+
+    # Example 3
+    mat3 = np.array([[1, 1, 1],
+                     [0, 1, 2],
+                     [1, 0, 1]])
+    p3 = 3
+    examples.append((mat3, p3))
+
+    return examples
+
 
 def test_finite_field_gauss_jordan_elimination(
-        example_integer_matrices
+        example_finite_field_matrices
 ) -> None:
 
-    for idx, (mat, p, result, _) in enumerate(example_integer_matrices):
+    for idx, (mat, p, result, _) in enumerate(example_finite_field_matrices):
         mat_new = finite_field_gauss_jordan_elimination(mat, p)
         assert np.all(mat_new == result) == True, \
             f"Matrices #{idx} do not match"
 
 def test_finite_field_rank(
-        example_integer_matrices
+        example_finite_field_matrices
 ) -> None:
 
-    for idx, (mat, p, _, rank) in enumerate(example_integer_matrices):
+    for idx, (mat, p, _, rank) in enumerate(example_finite_field_matrices):
         rank_new = finite_field_matrix_rank(mat, p)
         assert rank_new == rank, \
             f"Computed rank of matrix #{idx} do not match the expected rank"
@@ -138,3 +167,35 @@ def test_rank(
         rank_new = matrix_rank(mat)
         assert rank_new == rank, \
             f"Computed rank of matrix #{idx} do not match the expected rank"
+
+def test_not_invertible_finite_field_matrices() -> None:
+    """Test that non-invertible matrices raise errors."""
+    mat1 = np.array([[2, 4],
+                     [1, 2]])
+    p1 = 3  # Modulus where the matrix is not invertible
+
+    with pytest.raises(ValueError):
+        finite_field_inverse(mat1, p1)
+
+    mat2 = np.array([[1, 2, 3],
+                     [4, 5, 6],
+                     [7, 8, 9]])
+    p2 = 5  # Modulus where the matrix is not invertible
+
+    with pytest.raises(ValueError):
+        finite_field_inverse(mat2, p2)
+
+def test_finite_field_inverse(
+        example_invertible_finite_field_matrices
+) -> None:
+    """Test the finite field matrix inversion."""
+    for idx, (mat, p) in enumerate(example_invertible_finite_field_matrices):
+        inv_mat = finite_field_inverse(mat, p)
+        identity = (mat @ inv_mat) % p
+        expected_identity = np.eye(mat.shape[0], dtype=int) % p
+        assert np.all(identity == expected_identity), \
+            f"Inverse computation failed for matrix #{idx}"
+
+
+
+    

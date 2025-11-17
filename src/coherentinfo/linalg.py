@@ -85,6 +85,38 @@ def finite_field_matrix_rank(
     rank = np.sum(np.diag(new_mat))
     return int(rank)
 
+def finite_field_inverse(
+        mat: NDArray[np.int_],
+        p: int
+) -> NDArray[np.int_]:
+    """Return the inverse of ``mat`` over GF(p).
+
+    Args:
+        mat: Numpy array representing the matrix. The array is copied
+            and not mutated.
+        p: Prime modulus (must be prime so inverses exist for non-zero elems).
+
+    Returns:
+        A new numpy array containing the inverse of ``mat`` modulo ``p``.
+
+    Raises:
+        ValueError: If the matrix is not invertible.
+    """
+
+    if mat.shape[0] != mat.shape[1]:
+        raise ValueError("Matrix must be square to compute inverse.")
+
+    n = mat.shape[0]
+    # Create an augmented matrix [mat | I]
+    augmented_mat = np.hstack((mat.copy() % p, np.eye(n, dtype=np.int_) % p))
+    rref_mat = finite_field_gauss_jordan_elimination(augmented_mat, p)
+    # Check if left side is identity
+    if not np.array_equal(rref_mat[:, :n], np.eye(n, dtype=np.int_)):
+        raise ValueError("Matrix is not invertible over GF(p).")
+    inverse_mat = rref_mat[:, n:] % p
+    return inverse_mat
+    
+
 
 def gauss_jordan_elimination(
         mat: NDArray[np.float64]
