@@ -5,6 +5,7 @@ from coherentinfo.linalg import (
     finite_field_gauss_jordan_elimination,
     finite_field_matrix_rank,
     finite_field_inverse,
+    finite_field_pseudoinverse,
     gauss_jordan_elimination,
     matrix_rank,
     is_prime
@@ -88,6 +89,49 @@ def example_invertible_finite_field_matrices() -> List[Tuple[NDArray[np.int_], i
                      [1, 0, 1]])
     p3 = 3
     examples.append((mat3, p3))
+
+    return examples
+
+@pytest.fixture()
+def example_full_rank_finite_field_matrices() -> List[Tuple[NDArray[np.int_], int]]:
+    """Provides example full rank matrices and moduli for testing"""
+
+    examples = []
+
+    # Example 1
+    mat1 = np.array([[1, 4, 1, 5, 2], 
+                    [0, 3, 6, 2, 5], 
+                    [1, 1, 3, 0, 1], 
+                    [2, 2, 1, 0, 6]])
+    p1 = 7
+
+    examples.append((mat1, p1))
+
+    mat2 = np.array([[1, 0, 1, 2, 2, 0, 0], 
+                     [0, 2, 0, 1, 1, 0, 0], 
+                     [1, 1, 0, 0, 1, 1, 1]])
+    p2 = 3
+
+    examples.append((mat2, p2))
+
+    mat3 = np.array([[1, 0, 1, 2, 2, 0, 0, 6, 9], 
+                     [0, 2, 0, 1, 1, 0, 0, 0, 8], 
+                     [1, 1, 0, 0, 1, 1, 1, 5, 5], 
+                     [1, 1, 0, 1, 1, 3, 1, 5, 5], 
+                     [1, 0, 0, 1, 1, 3, 4, 6, 5]])
+    p3 = 11
+
+    examples.append((mat3, p3))
+
+    mat4 = np.array([[1, 0, 1, 2, 4, 0, 0, 0, 0, 1], 
+                    [0, 2, 0, 1, 1, 0, 0, 0, 2, 4], 
+                    [1, 1, 0, 0, 1, 1, 1, 2, 2, 2], 
+                    [1, 3, 0, 1, 1, 0, 1, 2, 2, 0], 
+                    [1, 0, 0, 1, 1, 0, 1, 0, 2, 1], 
+                    [1, 1, 1, 1, 0, 0, 1, 0, 0, 1]])
+    p4 = 5
+
+    examples.append((mat4, p4))
 
     return examples
 
@@ -195,6 +239,18 @@ def test_finite_field_inverse(
         expected_identity = np.eye(mat.shape[0], dtype=int) % p
         assert np.all(identity == expected_identity), \
             f"Inverse computation failed for matrix #{idx}"
+
+def test_finite_field_pseudoinverse(
+        example_full_rank_finite_field_matrices
+) -> None:
+    """Test the finite field matrix (right) pseudoinverse."""
+    for idx, (mat, p) in enumerate(example_full_rank_finite_field_matrices):
+        inv_mat = finite_field_pseudoinverse(mat, p)
+        identity = (mat @ inv_mat) % p
+        expected_identity = np.eye(mat.shape[0], dtype=int) % p
+        assert np.all(identity == expected_identity), \
+            f"Pseudoinverse computation failed for matrix #{idx}"
+    
 
 
 

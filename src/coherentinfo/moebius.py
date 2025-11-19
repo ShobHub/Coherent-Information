@@ -5,6 +5,7 @@ from typing import Tuple
 from numpy.typing import NDArray
 from functools import partial
 from coherentinfo.linalg import is_prime
+from coherentinfo.linalg import finite_field_inverse
 
 class MoebiusCode:
     """ Class representing the Moebius code.
@@ -83,8 +84,6 @@ class MoebiusCode:
                   f"is an odd prime.")
         return result
         
-        
-      
 
     def index_h(self, y: int, x: int) -> int:
         """ Gives the index of a horizontal edge.
@@ -380,7 +379,7 @@ class MoebiusCode:
         These can be simply obtained from the qubit case.
 
         Returns:
-            The matrix of the qubit plaquette destabilizers of type two.
+            The matrix of the plaquette destabilizers of type two.
         """
 
         p = np.int16(self.d / 2)
@@ -389,6 +388,78 @@ class MoebiusCode:
             return None
         else:
             return self.plaquette_destab_qubit * p
+    
+    def build_pre_plaquette_destabilizers_type_p(
+            self
+    ) -> Tuple[NDArray, NDArray]:
+        """ Returns the pre-plaquette destabilizers associated with the 
+        stabilizers S_j^X[p] assuming  qudits with d = 2 p and p odd prime.
+        The pre-plaquette destabilizers are used in the construction of 
+        the proper destabilizers. They have the property that they do 
+        not commute with the corresponding destabilizer, but they might 
+        also not commute with other ones. Additionally, they are constructed
+        in such a way that they are independent. This is a necessary condition
+        for the later construction of the proper plaquette destabilizers
+        of type p. 
+
+        Returns:
+            The matrix of the pre-plaquette destabilizers of type p.
+        """
+
+        p = np.int16(self.d / 2)
+
+        h_x_tilde = self.h_x % p
+        for y in range(self.width):
+            h_x_tilde = np.delete(h_x_tilde, self.index_v(y, 0), axis=-1)
+        destab_tilde = h_x_tilde 
+            # (finite_field_inverse(h_x_tilde @ h_x_tilde.T, p))
+        destab_tilde = destab_tilde.T % p
+        return h_x_tilde, destab_tilde
+
+
+        # rows = []
+        # for y in range(0, self.width):
+        #     for x in range(0, self.length):
+        #         row = np.zeros(self.num_edges, dtype=np.int16)
+        #         if (x + 1) != self.length:
+        #             row[self.index_v(y, x + 1)] = 1
+        #         else:
+        #             row[self.index_h(self.width - 1 - y, x)] = 1
+
+        #         rows.append(row)
+        
+        # pre_plaquette_destab = np.array(rows, dtype=np.int16)
+
+        # return pre_plaquette_destab
+        
+
+
+    
+    def build_plaquette_destabilizers_type_p(
+            self
+    ) -> NDArray:
+        """ Returns the plaquette destabilizers associated with the 
+        stabilizers S_j^X[p] assuming  qudits with d = 2 p and p odd prime. 
+
+        Returns:
+            The matrix of the plaquette destabilizers of type p.
+        """
+
+
+        p = np.int16(self.d / 2)
+
+        if not is_prime(p) or p % 2 == 0:
+            return None
+        else:
+            v_mat = np.vstack(self.h_x % p, self.logical_x % p)
+            w_mat = (v_mat.T @ finite_field_inverse(v_mat @ v_mat.T)).T % p
+
+            return w_mat[:-1] 
+
+                
+
+
+
 
 
         

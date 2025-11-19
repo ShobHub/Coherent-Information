@@ -32,6 +32,10 @@ def moebius_code_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
     moebius_code_5 = MoebiusCode(length=5, width=45, d=2 * 107)
     examples.append((moebius_code_5))
 
+    # Example 6: length=5, width=45
+    moebius_code_6 = MoebiusCode(length=7, width=5, d=2 * 3)
+    examples.append((moebius_code_6))
+
     return examples
 
 def test_vertex_shapes(moebius_code_example) -> None:
@@ -302,7 +306,7 @@ def test_plaquette_destabilizers(moebius_code_example) -> None:
                 f"the correct commutation relation in example #{idx}." 
          
 
-def test_rank(moebius_code_example) -> None:
+def test_rank_moebius(moebius_code_example) -> None:
     """Test that H_X matrix mod d has full rank over the finite field
     F_q with q = d / 2"""
     for idx, moebius_code in enumerate(moebius_code_example):
