@@ -80,9 +80,13 @@ def finite_field_matrix_rank(
     """
 
     new_mat = finite_field_gauss_jordan_elimination(mat, p)
-    # We compute the rank by summing the diagonal elements after 
-    # Gauss-Jordan elimination
-    rank = np.sum(np.diag(new_mat))
+    
+    rank = mat.shape[0]
+    for row in reversed(range(mat.shape[0])):
+        if np.count_nonzero(new_mat[row, :]) != 0:
+            break
+        else:
+            rank -= 1
     return int(rank)
 
 def finite_field_inverse(
