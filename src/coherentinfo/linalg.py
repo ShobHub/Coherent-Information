@@ -143,12 +143,14 @@ def finite_field_pseudoinverse(
         raise ValueError(f"The number of rows should be smaller than the"
                          f"number of columns.")
     n, m = mat.shape
+
+    if n != finite_field_matrix_rank(mat, p):
+        raise ValueError(f"The rank of the matrix must be equal to the "
+                         f"number of rows.")
+
     
     augmented_mat = np.hstack((mat % p, np.eye(n, dtype=np.int_) % p))
     rref_mat = finite_field_gauss_jordan_elimination(augmented_mat, p)
-    if not np.array_equal(rref_mat[:, :n], np.eye(n, dtype=np.int_)):
-        raise ValueError(f"The rank of the matrix must be equal to the "
-                         f"number of rows.")
     
     pseudo_inv_mat = \
         np.vstack((rref_mat[:, m:], np.zeros([m - n, n], dtype=np.int_)))

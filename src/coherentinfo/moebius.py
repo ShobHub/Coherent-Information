@@ -4,8 +4,10 @@ import numpy as np
 from typing import Tuple
 from numpy.typing import NDArray
 from functools import partial
-from coherentinfo.linalg import is_prime
-from coherentinfo.linalg import finite_field_inverse
+from coherentinfo.linalg import (is_prime,
+                                 finite_field_pseudoinverse, 
+                                 finite_field_inverse)
+
 
 class MoebiusCode:
     """ Class representing the Moebius code.
@@ -294,7 +296,8 @@ class MoebiusCode:
                 logical_x[self.index_v(y, 0)] = -1
             else:
                 logical_x[self.index_v(y, 0)] = 1
-        return logical_x
+        p = np.int16(self.d / 2) 
+        return p * logical_x
     
 
     def build_vertex_destabilizers(
@@ -408,29 +411,20 @@ class MoebiusCode:
 
         p = np.int16(self.d / 2)
 
-        h_x_tilde = self.h_x % p
+        h_x_tilde = 2 * self.h_x.copy() % p
+        # We first remove the columns associated with edges that define
+        # the logical X
+        logical_x_edges = [self.index_v(y, 0) for y in range(self.width)]
+        h_x_tilde = np.delete(h_x_tilde, logical_x_edges, axis=-1)
+        destab_tilde = finite_field_pseudoinverse(h_x_tilde, p).T
+        # We now need to add zero columns corresponding to the edges that
+        # define the logical X
+        destab = destab_tilde.copy()
         for y in range(self.width):
-            h_x_tilde = np.delete(h_x_tilde, self.index_v(y, 0), axis=-1)
-        destab_tilde = h_x_tilde 
-            # (finite_field_inverse(h_x_tilde @ h_x_tilde.T, p))
-        destab_tilde = destab_tilde.T % p
-        return h_x_tilde, destab_tilde
+            destab = np.insert(destab, self.index_v(y, 0), 0, axis=-1)
+        # destab = np.hstack((destab, np.zeros([destab.shape[0], 1], dtype=np.int_)))
 
-
-        # rows = []
-        # for y in range(0, self.width):
-        #     for x in range(0, self.length):
-        #         row = np.zeros(self.num_edges, dtype=np.int16)
-        #         if (x + 1) != self.length:
-        #             row[self.index_v(y, x + 1)] = 1
-        #         else:
-        #             row[self.index_h(self.width - 1 - y, x)] = 1
-
-        #         rows.append(row)
-        
-        # pre_plaquette_destab = np.array(rows, dtype=np.int16)
-
-        # return pre_plaquette_destab
+        return h_x_tilde, destab_tilde, destab
         
 
 
