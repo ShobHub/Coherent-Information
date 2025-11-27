@@ -5,7 +5,8 @@ from typing import Tuple
 from numpy.typing import NDArray
 from functools import partial
 from coherentinfo.linalg import (is_prime,
-                                 finite_field_inverse)
+                                 finite_field_inverse,
+                                 finite_field_gauss_jordan_elimination)
 
 
 class MoebiusCode:
@@ -42,18 +43,23 @@ class MoebiusCode:
         if d % 2 != 0:
             raise ValueError("Dimension d must be even for the Moebius code")
         
-        self.length = length 
-        self.width = width 
-        self.d = d
+        self._length = length 
+        self._width = width 
+        self._d = d
+        self.compute_and_set_code_properties()
+        
+    
+    def compute_and_set_code_properties(self):
+        """Helper method to run any time a parameter changes"""
         if is_prime(np.int16(self.d / 2)) and np.int16(self.d / 2) != 2:
             self.p = np.int16(self.d / 2)
         else:
             self.p = None
-        self.num_h_edges = length * (width - 1)  # horizontal edges
-        self.num_v_edges = length * width  # vertical edges
+        self.num_h_edges = self.length * (self.width - 1)  # horizontal edges
+        self.num_v_edges = self.length * self.width  # vertical edges
         self.num_edges = self.num_h_edges + self.num_v_edges
-        self.num_vertex_checks = (length * (width - 1))
-        self.num_plaquette_checks = length * width
+        self.num_vertex_checks = (self.length * (self.width - 1))
+        self.num_plaquette_checks = self.length * self.width
         # Note that the plaquette checks are not independent, 
         # but we will write all of them anyway to test the implementation
         self.h_z = self.build_moebius_code_vertex()
@@ -77,11 +83,44 @@ class MoebiusCode:
         # Destabilizers
         self.vertex_destab = self.build_vertex_destabilizers()
         self.plaquette_destab_qubit = self.build_plaquette_destabilizers_qubit()
-        if self.p is not None:
-            self.h_x_mod_p = self.h_x % self.p
-            self.plaquette_destab_type_two = \
-                self.build_plaquette_destabilizers_type_two()
-        
+        self.h_x_mod_p = self.h_x % self.p if self.p is not None else None
+        self.plaquette_destab_type_two = \
+            self.p * self.plaquette_destab_qubit if self.p is not None else None
+        self.plaquette_destab_mod_p = \
+            self.build_plaquette_destabilizers_mod_p() \
+                if self.p is not None else None
+        self.plaquette_destab_type_p = 2 * self.plaquette_destab_mod_p \
+            if self.p is not None else None
+
+    @property
+    def length(self):
+        return self._length
+    
+    @property
+    def width(self):
+        return self._width
+    
+    @property
+    def d(self):
+        return self._d
+    
+    @length.setter
+    def length(self, length):
+        self._length = length
+        self.compute_and_set_code_properties()
+    
+    @width.setter
+    def width(self, width):
+        self._width = width
+        self.compute_and_set_code_properties()
+    
+    @d.setter
+    def d(self, d):
+        self._d = d
+        self.compute_and_set_code_properties()
+    
+
+    
     def index_h(self, y: int, x: int) -> int:
         """ Gives the index of a horizontal edge.
 
@@ -374,57 +413,64 @@ class MoebiusCode:
     # the method above in the following way.
     build_plaquette_destabilizers_mod_two = \
         build_plaquette_destabilizers_qubit
-
-    def build_plaquette_destabilizers_mod_two(
-            self,
-    ) -> NDArray:
-        """Returns the same output as self.build_plaquette_destabilizers_qubit"""
-        return self.build_plaquette_destabilizers_qubit()
     
-    def build_plaquette_destabilizers_type_two(
-            self
-    ) -> NDArray:
-        """ Returns the plaquette destabilizers associated with the 
-        stabilizers S_j^X[2] assuming  qudits with d = 2 p and p odd prime. 
-        These can be simply obtained from the qubit case.
+    # def build_plaquette_destabilizers_type_two(
+    #         self
+    # ) -> NDArray:
+    #     """ Returns the plaquette destabilizers associated with the 
+    #     stabilizers S_j^X[2] assuming  qudits with d = 2 p and p odd prime. 
+    #     These can be simply obtained from the qubit case.
 
-        Returns:
-            The matrix of the plaquette destabilizers of type two.
-        """
+    #     Returns:
+    #         The matrix of the plaquette destabilizers of type two.
+    #     """
 
-        if self.p is not None:
-            return self.p * self.plaquette_destab_qubit
-        else:
-            None
-            
+    #     if self.p is not None:
+    #         return self.p * self.plaquette_destab_qubit
+    #     else:
+    #         None
     
-    @staticmethod
-    def finite_field_right_pseudoinverse_from_gram(
+    @staticmethod    
+    def finite_field_right_pseudoinverse(
         mat: NDArray[np.int_],
         p: int
     ) -> NDArray[np.int_]:
-        """Return a right pseudoinverse of ``mat`` over GF(p) with p odd 
-        prime. If A = mat is a n x m matrix with n < m and rank(A) = n 
-        and in addition the rank of its associated Gram matrix A A^T 
-        is also n, the function returns a m x n matrix B such that 
-        B = A^T (A A^T)^{-1}. In fact, A B = (A A^T) (A A^T)^{-1} = I_{n x n}.
-        Note that in GF(p) the Gram matrix is not guaranteed have rank n
-        if rank(A) = n, so the current method fails if this is not the case.
-        Counterexample. A = [1 1 1] has rank 1, but A A^T = 0 mod 3, so it 
-        has rank 0. 
+        """Return a right pseudoinverse of ``mat`` over GF(p). If A = mat
+        is a n x m matrix with n < m and rank(A) = n the function 
+        returns a m x n matrix B such that A B = I_{n x n}. 
+        Watch out. The method seems to work for the matrices involved in the 
+        Moebius code, but it does not work in general. A more general and 
+        correct method should be implemented based on the singular value
+        decomposition.  
 
         Args:
             mat: Numpy array representing the matrix. 
             p: Prime modulus (must be prime so inverses exist for non-zero elems).
 
         Returns:
-            A new numpy array containing a right pseudoinverse of ``mat`` 
-            modulo ``p``.
+            A new numpy array containing the pseudoinverse of ``mat`` modulo ``p``.
+
+        Raises:
+            ValueError: If the rank of the matrix is not equal to the number of
+            rows.
         """
 
-        gram_mat = mat @ mat.T % p 
-        gram_inv = finite_field_inverse(gram_mat, p)
-        return (mat.T @ gram_inv).T
+        if mat.shape[0] >= mat.shape[1]:
+            raise ValueError(f"The number of rows should be smaller than the"
+                            f"number of columns.")
+        n, m = mat.shape
+        
+        augmented_mat = np.hstack((mat % p, np.eye(n, dtype=np.int_) % p))
+        rref_mat = finite_field_gauss_jordan_elimination(augmented_mat, p)
+        if not np.array_equal(rref_mat[:, :n], np.eye(n, dtype=np.int_)):
+            raise ValueError(f"The rank of the matrix must be equal to the "
+                            f"number of rows.")
+        
+        pseudo_inv_mat = \
+            np.vstack((rref_mat[:, m:], np.zeros([m - n, n], dtype=np.int_)))
+            
+        
+        return pseudo_inv_mat
 
 
     def build_plaquette_destabilizers_mod_p(
@@ -440,9 +486,9 @@ class MoebiusCode:
 
         if self.p is not None:
             plaquette_destab_qupit = \
-                self.finite_field_right_pseudoinverse_from_gram(self.h_x,
-                                                                self.p)
-            return plaquette_destab_qupit
+                self.finite_field_right_pseudoinverse(self.h_x, 
+                                                      self.p)
+            return plaquette_destab_qupit.T
         else:
             return None
 

@@ -212,7 +212,7 @@ def test_rank(
             f"Computed rank of matrix #{idx} do not match the expected rank"
 
 def test_not_invertible_finite_field_matrices() -> None:
-    """Test that non-invertible matrices raise errors."""
+    """Tests that non-invertible matrices raise errors."""
     mat1 = np.array([[2, 4],
                      [1, 2]])
     p1 = 3  # Modulus where the matrix is not invertible
@@ -231,7 +231,7 @@ def test_not_invertible_finite_field_matrices() -> None:
 def test_finite_field_inverse(
         example_invertible_finite_field_matrices
 ) -> None:
-    """Test the finite field matrix inversion."""
+    """Tests the finite field matrix inversion."""
     for idx, (mat, p) in enumerate(example_invertible_finite_field_matrices):
         inv_mat = finite_field_inverse(mat, p)
         identity = (mat @ inv_mat) % p

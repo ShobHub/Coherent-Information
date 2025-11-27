@@ -39,7 +39,7 @@ def moebius_code_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
     return examples
 
 def test_vertex_shapes(moebius_code_example) -> None:
-    """Test that the generated matrices have the correct shapes."""
+    """Tests that the generated matrices have the correct shapes."""
     # The fixture provides example (h_z, l_z, num_edges) tuples.
     for idx, moebius_code in enumerate(moebius_code_example):
         # derive expected sizes from returned matrices
@@ -66,7 +66,7 @@ def test_commutation(moebius_code_example) -> None:
             f"The stabilizers do not commute for example #{idx}."
 
 def test_logical_stab_commutation(moebius_code_example) -> None:
-    """Test that the logical operators commute with the stabilizers."""
+    """Tests that the logical operators commute with the stabilizers."""
     for idx, moebius_code in enumerate(moebius_code_example):
         h_x = moebius_code.h_x
         logical_z = moebius_code.logical_z
@@ -82,7 +82,7 @@ def test_logical_stab_commutation(moebius_code_example) -> None:
             f"Logical X operator does not commute with stabilizers in example #{idx}"
 
 def test_logical_commutation(moebius_code_example) -> None:
-    """Test that the logical X and Z operators anticommute."""
+    """Tests that the logical X and Z operators anticommute."""
     for idx, (moebius_code) in enumerate(moebius_code_example):
         logical_x = moebius_code.logical_x
         logical_z = moebius_code.logical_z
@@ -92,7 +92,7 @@ def test_logical_commutation(moebius_code_example) -> None:
             f"Logical X and Z operators do not anticommute in example #{idx}"
 
 def test_invalid_parameters() -> None:
-    """Test that invalid parameters raise ValueError."""
+    """Tests that invalid parameters raise ValueError."""
     invalid_params = [
         (2, 3),  # length too small
         (3, 2),  # width too small
@@ -104,7 +104,7 @@ def test_invalid_parameters() -> None:
             MoebiusCode(length=length, width=width, d=2)
 
 def test_hz() -> None:
-    """Test specific known values of the h_z matrix for a small 
+    """Tests specific known values of the h_z matrix for a small 
     Moebius code."""
     length = 5
     width = 3
@@ -128,7 +128,7 @@ def test_hz() -> None:
             f"The H_Z matrix does not match the expected one."
 
 def test_hx() -> None:
-    """Test specific known values of the h_x matrix for a small Moebius code."""
+    """Tests specific known values of the h_x matrix for a small Moebius code."""
     length = 5
     width = 3
     moebius_code = MoebiusCode(length=length, width=width, d=2)
@@ -221,7 +221,7 @@ def test_hx() -> None:
             f"The H_X matrix does not match the expected one."
     
 def test_plaquette_constraint(moebius_code_example) -> None:
-    """Test that the product of all the plaquette stabilizers to the power 
+    """Tests that the product of all the plaquette stabilizers to the power 
     of d/2 is identity."""
 
     for idx, moebius_code in enumerate(moebius_code_example):
@@ -233,7 +233,7 @@ def test_plaquette_constraint(moebius_code_example) -> None:
                 f"constraint in example #{idx}."
 
 def test_vertex_destabilizers(moebius_code_example) -> None:
-    """Test that the vertex destabilizers (X-type) anticommute only with the 
+    """Tests that the vertex destabilizers (X-type) anticommute only with the 
     corresponding vertex destabilizer (Z-type) and commute with the logical
      Z operator """
     
@@ -252,7 +252,7 @@ def test_vertex_destabilizers(moebius_code_example) -> None:
                 f"logical Z in example #{idx}."
 
 def test_plaquette_destabilizer_qubit(moebius_code_example) -> None:
-    """Test that the plaquette destabilizers for the qubit case (Z-type)
+    """Tests that the plaquette destabilizers for the qubit case (Z-type)
     anticommute only with the corresponding plaquette stabilizer (X-type)
     and commute with the logical X operator"""
 
@@ -277,25 +277,25 @@ def test_plaquette_destabilizer_qubit(moebius_code_example) -> None:
 
 
 def test_q_not_odd_prime() -> None:
-    """Test that invalid dimension raise ValueError when trying to build
+    """Tests that invalid dimension raise ValueError when trying to build
     plaquette destabilizers."""
     invalid_dims = [2 * 4, 2 * 15, 2 * 2, 2 * 99]
 
     for dim in invalid_dims:
         moebius_code = MoebiusCode(length=7, width=5, d=dim)
-        mat = moebius_code.build_plaquette_destabilizers_type_two()
+        mat = moebius_code.plaquette_destab_type_two
         assert mat is None, \
                 f"The plaquette destabilizers are not None as \n" \
                 f"expected for qudit dimension #{dim}"
 
         
-def test_plaquette_destabilizers(moebius_code_example) -> None:
-    """Test that the plaquette destabilizers (Z-type) of type two
+def test_plaquette_destabilizers_type_two(moebius_code_example) -> None:
+    """Tests that the plaquette destabilizers (Z-type) of type two
     anticommute only with the corresponding plaquette stabilizer (X-type)
     and commute with the logical X operator"""
 
     for idx, moebius_code in enumerate(moebius_code_example):
-        p = np.int16(moebius_code.d / 2)
+        p = moebius_code.p
         h_x_eff = p * np.delete(moebius_code.h_x, 0, axis=0)
         plaquette_destab = moebius_code.plaquette_destab_type_two
         id_mat = np.identity(moebius_code.num_plaquette_checks - 1)
@@ -307,10 +307,10 @@ def test_plaquette_destabilizers(moebius_code_example) -> None:
          
 
 def test_rank_moebius(moebius_code_example) -> None:
-    """Test that H_X matrix mod d has full rank over the finite field
-    F_q with q = d / 2"""
+    """Tests that H_X matrix mod d has full rank over the finite field
+    F_q with p = d / 2"""
     for idx, moebius_code in enumerate(moebius_code_example):
-        p = np.int16(moebius_code.d / 2)
+        p = moebius_code.p
         h_x = moebius_code.h_x
         num_plaquette_checks = moebius_code.num_plaquette_checks 
         rank_h_x = finite_field_matrix_rank(h_x % moebius_code.d, p)
@@ -318,6 +318,30 @@ def test_rank_moebius(moebius_code_example) -> None:
                 f"The matrix H_X is not full rank over the finite field \n" \
                 f"p = d / 2 in example #{idx}."
         
+def test_plaquette_destabilizers_mod_p(moebius_code_example):
+    """Tests that the plaquette destabilizers (Z-type) mod p (p = d / 2)
+    anticommute only with the corresponding plaquette stabilizers (X-type) 
+    mod p and commute with the logical X. Note that the commutation with the 
+    logical X needs to be evaluate mod 2 * p. """
+    
+    for idx, moebius_code in enumerate(moebius_code_example):
+        p = moebius_code.p
+        h_x_mod_p = moebius_code.h_x_mod_p
+        plaquette_destab_mod_p = moebius_code.plaquette_destab_mod_p
+        id_mat = np.identity(moebius_code.num_plaquette_checks)
+        res_h_x_com = \
+            np.count_nonzero((h_x_mod_p @ plaquette_destab_mod_p.T % p) - id_mat)
+        assert res_h_x_com == 0, \
+                f"The plaquette destabilizers and checks mod p do not have \n" \
+                f"the correct commutation relation in example #{idx}." 
+        res_logical_com = \
+            moebius_code.logical_x @ (2 * plaquette_destab_mod_p.T) % (2 * p)
+        assert np.count_nonzero(res_logical_com) == 0, \
+                f"The plaquette destabilizers of type p and logical\n" \
+                f"do not have the correct commutation relation in \n" \
+                f"example #{idx}."
+
+
 
 
 
