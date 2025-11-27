@@ -5,7 +5,6 @@ from typing import Tuple
 from numpy.typing import NDArray
 from functools import partial
 from coherentinfo.linalg import (is_prime,
-                                 finite_field_pseudoinverse, 
                                  finite_field_inverse)
 
 
@@ -439,13 +438,13 @@ class MoebiusCode:
             The matrix of the pre-plaquette destabilizers of type p.
         """
 
-        if self.p is None:
-            return None
-        else:
+        if self.p is not None:
             plaquette_destab_qupit = \
                 self.finite_field_right_pseudoinverse_from_gram(self.h_x,
                                                                 self.p)
             return plaquette_destab_qupit
+        else:
+            return None
 
     def build_plaquette_destabilizers_type_p(
             self
@@ -457,16 +456,11 @@ class MoebiusCode:
             The matrix of the plaquette destabilizers of type p.
         """
 
-
-        p = np.int16(self.d / 2)
-
-        if not is_prime(p) or p % 2 == 0:
-            return None
+        if self.p is not None:
+            return 2 * self.build_plaquette_destabilizers_mod_p()
         else:
-            v_mat = np.vstack(self.h_x % p, self.logical_x % p)
-            w_mat = (v_mat.T @ finite_field_inverse(v_mat @ v_mat.T)).T % p
-
-            return w_mat[:-1] 
+            return None
+        
 
                 
 

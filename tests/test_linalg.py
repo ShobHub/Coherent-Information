@@ -5,7 +5,6 @@ from coherentinfo.linalg import (
     finite_field_gauss_jordan_elimination,
     finite_field_matrix_rank,
     finite_field_inverse,
-    finite_field_pseudoinverse,
     gauss_jordan_elimination,
     matrix_rank,
     is_prime
