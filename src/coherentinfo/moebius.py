@@ -14,7 +14,10 @@ class MoebiusCode:
     """
 
     def __init__(self, length: int, width: int, d: int = 2):
-        """ Initializes the Moebius code.
+        """ Initializes the Moebius code. The strategy is to store
+        all the necessary data, since they would need to be called
+        repeatedly if we use this for computing the coherent 
+        information. 
 
         Args:
             length: Length of the Moebius strip (number of vertices 
@@ -43,6 +46,10 @@ class MoebiusCode:
         self.length = length 
         self.width = width 
         self.d = d
+        if is_prime(np.int16(self.d / 2)) and np.int16(self.d / 2) != 2:
+            self.p = np.int16(self.d / 2)
+        else:
+            self.p = None
         self.num_h_edges = length * (width - 1)  # horizontal edges
         self.num_v_edges = length * width  # vertical edges
         self.num_edges = self.num_h_edges + self.num_v_edges
@@ -71,22 +78,11 @@ class MoebiusCode:
         # Destabilizers
         self.vertex_destab = self.build_vertex_destabilizers()
         self.plaquette_destab_qubit = self.build_plaquette_destabilizers_qubit()
-        self._plaquette_destab_type_two = None
-    
-    @property
-    def plaquette_destab_type_two(self):
-        if self._plaquette_destab_type_two is not None:
-            return self._plaquette_destab_type_two
+        if self.p is not None:
+            self.h_x_mod_p = self.h_x % self.p
+            self.plaquette_destab_type_two = \
+                self.build_plaquette_destabilizers_type_two()
         
-        result = self.build_plaquette_destabilizers_type_two()
-
-        if result is None:
-            print(f"INFO: The attribute 'plaquette_destab_type_two' \n" \
-                  f"is NOT set because d={self.d} is not 2 * p where p \n" \
-                  f"is an odd prime.")
-        return result
-        
-
     def index_h(self, y: int, x: int) -> int:
         """ Gives the index of a horizontal edge.
 
@@ -296,8 +292,11 @@ class MoebiusCode:
                 logical_x[self.index_v(y, 0)] = -1
             else:
                 logical_x[self.index_v(y, 0)] = 1
-        p = np.int16(self.d / 2) 
-        return p * logical_x
+        # Note here we 
+        if self.p is not None:
+            return self.p * logical_x
+        else:
+            return logical_x
     
 
     def build_vertex_destabilizers(
@@ -333,8 +332,6 @@ class MoebiusCode:
         vertex_destab = np.array(rows, dtype=np.int16)
 
         return vertex_destab
-
-
 
     def build_plaquette_destabilizers_qubit(
             self
@@ -374,6 +371,17 @@ class MoebiusCode:
 
         return plaquette_destab_qubit
     
+    # It is convenient when we study qudits to be able to call
+    # the method above in the following way.
+    build_plaquette_destabilizers_mod_two = \
+        build_plaquette_destabilizers_qubit
+
+    def build_plaquette_destabilizers_mod_two(
+            self,
+    ) -> NDArray:
+        """Returns the same output as self.build_plaquette_destabilizers_qubit"""
+        return self.build_plaquette_destabilizers_qubit()
+    
     def build_plaquette_destabilizers_type_two(
             self
     ) -> NDArray:
@@ -385,50 +393,60 @@ class MoebiusCode:
             The matrix of the plaquette destabilizers of type two.
         """
 
-        p = np.int16(self.d / 2)
-
-        if not is_prime(p) or p % 2 == 0:
-            return None
+        if self.p is not None:
+            return self.p * self.plaquette_destab_qubit
         else:
-            return self.plaquette_destab_qubit * p
+            None
+            
     
-    def build_pre_plaquette_destabilizers_type_p(
+    @staticmethod
+    def finite_field_right_pseudoinverse_from_gram(
+        mat: NDArray[np.int_],
+        p: int
+    ) -> NDArray[np.int_]:
+        """Return a right pseudoinverse of ``mat`` over GF(p) with p odd 
+        prime. If A = mat is a n x m matrix with n < m and rank(A) = n 
+        and in addition the rank of its associated Gram matrix A A^T 
+        is also n, the function returns a m x n matrix B such that 
+        B = A^T (A A^T)^{-1}. In fact, A B = (A A^T) (A A^T)^{-1} = I_{n x n}.
+        Note that in GF(p) the Gram matrix is not guaranteed have rank n
+        if rank(A) = n, so the current method fails if this is not the case.
+        Counterexample. A = [1 1 1] has rank 1, but A A^T = 0 mod 3, so it 
+        has rank 0. 
+
+        Args:
+            mat: Numpy array representing the matrix. 
+            p: Prime modulus (must be prime so inverses exist for non-zero elems).
+
+        Returns:
+            A new numpy array containing a right pseudoinverse of ``mat`` 
+            modulo ``p``.
+        """
+
+        gram_mat = mat @ mat.T % p 
+        gram_inv = finite_field_inverse(gram_mat, p)
+        return (mat.T @ gram_inv).T
+
+
+    def build_plaquette_destabilizers_mod_p(
             self
-    ) -> Tuple[NDArray, NDArray]:
-        """ Returns the pre-plaquette destabilizers associated with the 
-        stabilizers S_j^X[p] assuming  qudits with d = 2 p and p odd prime.
-        The pre-plaquette destabilizers are used in the construction of 
-        the proper destabilizers. They have the property that they do 
-        not commute with the corresponding destabilizer, but they might 
-        also not commute with other ones. Additionally, they are constructed
-        in such a way that they are independent. This is a necessary condition
-        for the later construction of the proper plaquette destabilizers
-        of type p. 
+    ) -> Tuple[NDArray, NDArray] | None:
+        """ Returns the destabilizers assuming qupit with p 
+        odd prime on the edges. If p is not odd prime it returns 
+        None
 
         Returns:
             The matrix of the pre-plaquette destabilizers of type p.
         """
 
-        p = np.int16(self.d / 2)
+        if self.p is None:
+            return None
+        else:
+            plaquette_destab_qupit = \
+                self.finite_field_right_pseudoinverse_from_gram(self.h_x,
+                                                                self.p)
+            return plaquette_destab_qupit
 
-        h_x_tilde = 2 * self.h_x.copy() % p
-        # We first remove the columns associated with edges that define
-        # the logical X
-        logical_x_edges = [self.index_v(y, 0) for y in range(self.width)]
-        h_x_tilde = np.delete(h_x_tilde, logical_x_edges, axis=-1)
-        destab_tilde = finite_field_pseudoinverse(h_x_tilde, p).T
-        # We now need to add zero columns corresponding to the edges that
-        # define the logical X
-        destab = destab_tilde.copy()
-        for y in range(self.width):
-            destab = np.insert(destab, self.index_v(y, 0), 0, axis=-1)
-        # destab = np.hstack((destab, np.zeros([destab.shape[0], 1], dtype=np.int_)))
-
-        return h_x_tilde, destab_tilde, destab
-        
-
-
-    
     def build_plaquette_destabilizers_type_p(
             self
     ) -> NDArray:
