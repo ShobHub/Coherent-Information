@@ -5,7 +5,6 @@ from typing import Tuple
 from numpy.typing import NDArray
 from functools import partial
 from coherentinfo.linalg import (is_prime,
-                                 finite_field_inverse,
                                  finite_field_gauss_jordan_elimination)
 
 
