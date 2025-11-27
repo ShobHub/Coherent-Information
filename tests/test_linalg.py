@@ -239,17 +239,6 @@ def test_finite_field_inverse(
         expected_identity = np.eye(mat.shape[0], dtype=int) % p
         assert np.all(identity == expected_identity), \
             f"Inverse computation failed for matrix #{idx}"
-
-def test_finite_field_pseudoinverse(
-        example_full_rank_finite_field_matrices
-) -> None:
-    """Test the finite field matrix (right) pseudoinverse."""
-    for idx, (mat, p) in enumerate(example_full_rank_finite_field_matrices):
-        inv_mat = finite_field_pseudoinverse(mat, p)
-        identity = (mat @ inv_mat) % p
-        expected_identity = np.eye(mat.shape[0], dtype=int) % p
-        assert np.all(identity == expected_identity), \
-            f"Pseudoinverse computation failed for matrix #{idx}"
     
 
 

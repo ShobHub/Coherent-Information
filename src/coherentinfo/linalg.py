@@ -119,53 +119,6 @@ def finite_field_inverse(
     inverse_mat = rref_mat[:, n:] % p
     return inverse_mat
 
-def finite_field_pseudoinverse(
-        mat: NDArray[np.int_],
-        p: int
-) -> NDArray[np.int_]:
-    """Return the pseudoinverse of ``mat`` over GF(p). If A = mat
-    is a n x m matrix with n < m and rank(A) = n the function 
-    returns a m x n matrix B such that A B = I_{n x n}.
-
-    Args:
-        mat: Numpy array representing the matrix. 
-        p: Prime modulus (must be prime so inverses exist for non-zero elems).
-
-    Returns:
-        A new numpy array containing the pseudoinverse of ``mat`` modulo ``p``.
-
-    Raises:
-        ValueError: If the rank of the matrix is not equal to the number of
-        rows.
-    """
-
-    if mat.shape[0] >= mat.shape[1]:
-        raise ValueError(f"The number of rows should be smaller than the"
-                         f"number of columns.")
-    n, m = mat.shape
-
-    if n != finite_field_matrix_rank(mat, p):
-        raise ValueError(f"The rank of the matrix must be equal to the "
-                         f"number of rows.")
-
-    
-    augmented_mat = np.hstack((mat % p, np.eye(n, dtype=np.int_) % p))
-    rref_mat = finite_field_gauss_jordan_elimination(augmented_mat, p)
-    
-    pseudo_inv_mat = \
-        np.vstack((rref_mat[:, m:], np.zeros([m - n, n], dtype=np.int_)))
-        
-    
-    return pseudo_inv_mat
-    
-
-    
-
-
-
-    
-    
-
 
 def gauss_jordan_elimination(
         mat: NDArray[np.float64]
