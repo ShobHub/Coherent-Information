@@ -12,29 +12,29 @@ def moebius_code_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
     """Provides example Moebius code matrices for testing."""
     examples = []
 
-    # Example 1: length=5, width=3
-    moebius_code_1 = MoebiusCode(length=5, width=3, d=2 * 17)
+    # Example 0: length=5, width=3
+    moebius_code_0 = MoebiusCode(length=5, width=3, d=2 * 17)
+    examples.append((moebius_code_0))
+
+    # Example 1: length=7, width=9
+    moebius_code_1 = MoebiusCode(length=7, width=9, d=2 * 7)
     examples.append((moebius_code_1))
 
-    # Example 2: length=7, width=9
-    moebius_code_2 = MoebiusCode(length=7, width=9, d=2 * 7)
+    # Example 2: length=11, width=21
+    moebius_code_2 = MoebiusCode(length=11, width=21, d=2 * 31)
     examples.append((moebius_code_2))
 
-    # Example 3: length=11, width=21
-    moebius_code_3 = MoebiusCode(length=11, width=21, d=2 * 31)
+    # Example 3: length=17, width=27
+    moebius_code_3 = MoebiusCode(length=17, width=27, d=2 * 3)
     examples.append((moebius_code_3))
 
-    # Example 4: length=11, width=27
-    moebius_code_4 = MoebiusCode(length=17, width=27, d=2 * 3)
+    # Example 4: length=5, width=45
+    moebius_code_4 = MoebiusCode(length=5, width=45, d=2 * 107)
     examples.append((moebius_code_4))
 
     # Example 5: length=5, width=45
-    moebius_code_5 = MoebiusCode(length=5, width=45, d=2 * 107)
+    moebius_code_5 = MoebiusCode(length=7, width=5, d=2 * 3)
     examples.append((moebius_code_5))
-
-    # Example 6: length=5, width=45
-    moebius_code_6 = MoebiusCode(length=7, width=5, d=2 * 3)
-    examples.append((moebius_code_6))
 
     return examples
 
@@ -341,6 +341,19 @@ def test_plaquette_destabilizers_mod_p(moebius_code_example):
                 f"do not have the correct commutation relation in \n" \
                 f"example #{idx}."
 
+
+def test_plaquette_candidate_error(moebius_code_example):
+    for idx, moebius_code in enumerate(moebius_code_example):
+        p = moebius_code.p
+        for _ in range(10):
+            error = np.random.randint(2 * p, size=moebius_code.num_edges)
+            syndrome = moebius_code.h_x @ error.T % (2 * p)
+            candidate_error = \
+                moebius_code.get_plaquette_candidate_error(syndrome)
+            syndrome_candidate = moebius_code.h_x @ candidate_error.T % (2 * p)
+            assert np.count_nonzero(syndrome - syndrome_candidate) == 0, \
+                f"The candidate error does not give the right syndrome in \n" \
+                f"examples #{idx}."
 
 
 

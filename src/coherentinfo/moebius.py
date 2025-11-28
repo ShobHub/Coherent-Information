@@ -505,7 +505,57 @@ class MoebiusCode:
             return 2 * self.build_plaquette_destabilizers_mod_p()
         else:
             return None
+    
+    def get_vertex_candidate_error(
+            self,
+            syndrome: NDArray
+    ) -> NDArray:
+        """ Given a valid vertex syndrome it returns the candidate 
+        error vector, that generates the same syndrome and commutes 
+        with the logical Z.   
+        """
+        syndrome = syndrome % (self.d)
+        candidate = np.zeros(self.num_edges, dtype=np.int16)
+        for index in range(self.num_plaquette_checks):
+            destab = self.vertex_destab[index, :]
+            candidate += syndrome[index] * destab % self.d 
+        return candidate % self.d
+    
+    def get_plaquette_candidate_error(
+            self,
+            syndrome: NDArray
+    ) -> NDArray:
+        """ Given a valid plaquette syndrome it returns the candidate 
+        error vector, that generate the same syndrome and commutes 
+        with the logical X.   
+        """
         
+        syndrome = syndrome % self.d
+        syndrome_mod_two = syndrome % 2
+        # Note the following is not the syndrome mod p, but it is the vector
+        # needed to correctly account for the syndrome mod p
+        syndrome_mod_p_aux = \
+            (syndrome - syndrome_mod_two * self.p) * \
+                pow(2, -1, int(self.p)) % self.p 
+
+        if np.sum(syndrome_mod_two[1:]) % 2 != syndrome_mod_two[0]:
+            raise ValueError(f"The syndrome is not valid as it does not"
+                             f"satisfy the plaquette constraint")
+        
+        candidate_type_two = np.zeros(self.num_edges, dtype=np.int16)
+        candidate_type_p = np.zeros(self.num_edges, dtype=np.int16)
+        for index in range(self.num_plaquette_checks):
+            if index != 0:
+                destab_type_two = self.plaquette_destab_type_two[index - 1, :]
+            else:
+                destab_type_two = np.zeros(self.num_edges, dtype=np.int16)
+            destab_type_p = self.plaquette_destab_type_p[index, :]
+            candidate_type_two = (candidate_type_two + \
+                syndrome_mod_two[index] * destab_type_two) % self.d 
+            candidate_type_p = (candidate_type_p + \
+                syndrome_mod_p_aux[index] * destab_type_p) % self.d
+
+        return (candidate_type_two + candidate_type_p) % self.d 
 
                 
 
