@@ -3,7 +3,6 @@
 import numpy as np
 from typing import Tuple
 from numpy.typing import NDArray
-from functools import partial
 from coherentinfo.linalg import (is_prime,
                                  finite_field_gauss_jordan_elimination)
 
@@ -167,7 +166,7 @@ class MoebiusCode:
         return num_h_edges + y * self.length + x
 
     def build_moebius_code_vertex(
-            self
+        self
     ) -> NDArray:
         """ Generates the Moebius code vertex checks.
         
@@ -214,7 +213,7 @@ class MoebiusCode:
         return h_z
 
     def build_moebius_code_plaquette(
-            self
+        self
     ) -> NDArray:
         """ Generates the Moebius code plaquette checks.
         
@@ -294,7 +293,7 @@ class MoebiusCode:
         return h_x
     
     def get_logical_z(
-            self
+        self
     ) -> NDArray:
         """ Returns the logical Z operator. This is defined as in the notes
         Z_logical = Z_1^{d/2} \tensor ... \tensor Z_length^{d/2}
@@ -312,7 +311,7 @@ class MoebiusCode:
         return logical_z
     
     def get_logical_x(
-            self
+        self
     ) -> NDArray:
         """ Returns the logical X operator. This is defined as in the notes
         X_logical = X_1 \tensor X_2^{-1} \tensor ... \tensor X_width
@@ -337,7 +336,7 @@ class MoebiusCode:
     
 
     def build_vertex_destabilizers(
-            self
+        self
     ) -> NDArray:
         """ Returns the vertex destabilizers. Remember that the vertex 
         destabilizers are associated with X-type errors. 
@@ -371,7 +370,7 @@ class MoebiusCode:
         return vertex_destab
 
     def build_plaquette_destabilizers_qubit(
-            self
+        self
     ) -> NDArray:
         """ Returns the plaquette destabilizers assuming qubits as fundamental 
         system on the edges. Remember that the vertex destabilizers are 
@@ -473,7 +472,7 @@ class MoebiusCode:
 
 
     def build_plaquette_destabilizers_mod_p(
-            self
+        self
     ) -> Tuple[NDArray, NDArray] | None:
         """ Returns the destabilizers assuming qupit with p 
         odd prime on the edges. If p is not odd prime it returns 
@@ -492,7 +491,7 @@ class MoebiusCode:
             return None
 
     def build_plaquette_destabilizers_type_p(
-            self
+        self
     ) -> NDArray:
         """ Returns the plaquette destabilizers associated with the 
         stabilizers S_j^X[p] assuming  qudits with d = 2 p and p odd prime. 
@@ -507,8 +506,8 @@ class MoebiusCode:
             return None
     
     def get_vertex_candidate_error(
-            self,
-            syndrome: NDArray
+        self,
+        syndrome: NDArray
     ) -> NDArray:
         """ Given a valid vertex syndrome it returns the candidate 
         error vector, that generates the same syndrome and commutes 
@@ -522,8 +521,8 @@ class MoebiusCode:
         return candidate % self.d
     
     def get_plaquette_candidate_error(
-            self,
-            syndrome: NDArray
+        self,
+        syndrome: NDArray
     ) -> NDArray:
         """ Given a valid plaquette syndrome it returns the candidate 
         error vector, that generate the same syndrome and commutes 

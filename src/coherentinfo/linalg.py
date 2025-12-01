@@ -20,8 +20,8 @@ def is_prime(n: int) -> bool:
     return True
 
 def finite_field_gauss_jordan_elimination(
-        mat: NDArray[np.int_],
-        p: int | np.int_
+    mat: NDArray[np.int_],
+    p: int | np.int_
 ) -> NDArray[np.int_]:
     """Return the reduced row-echelon form (RREF) of ``mat`` over GF(p).
 
@@ -65,8 +65,8 @@ def finite_field_gauss_jordan_elimination(
     return mat
 
 def finite_field_matrix_rank(
-        mat: NDArray[np.int_],
-        p: int       
+    mat: NDArray[np.int_],
+    p: int       
 ) -> int:
     """Return the rank of ``mat`` over GF(p).
 
@@ -90,8 +90,8 @@ def finite_field_matrix_rank(
     return int(rank)
 
 def finite_field_inverse(
-        mat: NDArray[np.int_],
-        p: int
+    mat: NDArray[np.int_],
+    p: int
 ) -> NDArray[np.int_]:
     """Return the inverse of ``mat`` over GF(p).
 
@@ -121,7 +121,7 @@ def finite_field_inverse(
 
 
 def gauss_jordan_elimination(
-        mat: NDArray[np.float64]
+    mat: NDArray[np.float64]
 ) -> NDArray[np.float64]:
     """Return the reduced row-echelon form (RREF) of ``mat`` over the 
     real numbers.
@@ -160,7 +160,7 @@ def gauss_jordan_elimination(
     return mat
 
 def matrix_rank(
-        mat: NDArray[np.float64]  
+    mat: NDArray[np.float64]  
 ) -> int:
     """Return the rank of ``mat`` over the real numbers.
 
