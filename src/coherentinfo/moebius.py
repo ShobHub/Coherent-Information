@@ -23,9 +23,6 @@ class MoebiusCode:
             width: Width of the Moebius strip (number of vertices 
                 along the width)
             d: qudit dimension. It is relevant for the logical operators.
-        
-        Returns:
-            Index associated with the edge.
         """
         
         
