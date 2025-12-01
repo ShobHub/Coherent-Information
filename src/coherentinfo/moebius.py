@@ -516,9 +516,9 @@ class MoebiusCode:
         """
         syndrome = syndrome % (self.d)
         candidate = np.zeros(self.num_edges, dtype=np.int16)
-        for index in range(self.num_plaquette_checks):
+        for index in range(self.num_vertex_checks):
             destab = self.vertex_destab[index, :]
-            candidate += syndrome[index] * destab % self.d 
+            candidate = (candidate + syndrome[index] * destab) % self.d 
         return candidate % self.d
     
     def get_plaquette_candidate_error(

@@ -355,6 +355,19 @@ def test_plaquette_candidate_error(moebius_code_example):
                 f"The candidate error does not give the right syndrome in \n" \
                 f"examples #{idx}."
 
+def test_vertex_candidate_error(moebius_code_example):
+    for idx, moebius_code in enumerate(moebius_code_example):
+        p = moebius_code.p
+        for _ in range(10):
+            error = np.random.randint(2 * p, size=moebius_code.num_edges)
+            syndrome = moebius_code.h_z @ error.T % (2 * p)
+            candidate_error = \
+                moebius_code.get_vertex_candidate_error(syndrome)
+            syndrome_candidate = moebius_code.h_z @ candidate_error.T % (2 * p)
+            assert np.count_nonzero(syndrome - syndrome_candidate) == 0, \
+                f"The candidate error does not give the right syndrome in \n" \
+                f"examples #{idx}."
+
 
 
 
