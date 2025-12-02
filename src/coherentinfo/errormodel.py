@@ -10,15 +10,15 @@ import scipy
 class ErrorModel(ABC):
     """Abstract class for error models."""
 
-    def __init__(self, num_edges: int, d: int):
+    def __init__(self, num_qudits: int, d: int):
         """ Init method for the abstract class. 
 
         Args:
-            num_edges: Length of the error vector to be generated
+            num_qudits: Length of the error vector to be generated
             d: Max value of the elements of the vector plus one.
         """
 
-        self.num_edges = num_edges
+        self.num_qudits = num_qudits
         self.d = d
     
     @abstractmethod
@@ -33,26 +33,26 @@ class ErrorModel(ABC):
         probability distribution"""
         pass 
 
-class ErrorModelLindblad(ErrorModel):
-    """Class for Lindbladian error model."""
+# class ErrorModelLindblad(ErrorModel):
+#     """Class for Lindbladian error model."""
 
-    def __init__(self, num_edges: int, d: int, gamma_t: float):
-        super().__init__(num_edges, d)
-        self.gamma_t = gamma_t 
+#     def __init__(self, num_qudits: int, d: int, gamma_t: float):
+#         super().__init__(num_qudits, d)
+#         self.gamma_t = gamma_t 
     
-    def get_probabilities(self) -> NDArray:
-        probs = np.zeros([self.d], dtype=float)
-        probs[0] = 1.0 
-        return probs 
+#     def get_probabilities(self) -> NDArray:
+#         probs = np.zeros([self.d], dtype=float)
+#         probs[0] = 1.0 
+#         return probs 
     
-    def generate_random_error(self) -> NDArray[int]:
-        return np.zeros([self.num_edges], dtype=int)
+#     def generate_random_error(self) -> NDArray[int]:
+#         return np.zeros([self.num_qudits], dtype=int)
 
 class ErrorModelPoisson(ErrorModel):
     """Class for Poissonian error model."""
 
-    def __init__(self, num_edges: int, d: int, gamma_t: float):
-        super().__init__(num_edges, d)
+    def __init__(self, num_qudits: int, d: int, gamma_t: float):
+        super().__init__(num_qudits, d)
         self.gamma_t = gamma_t
         self.probs = self.get_probabilities()
         # The following cumulative sum is used to create from 
@@ -81,13 +81,13 @@ class ErrorModelPoisson(ErrorModel):
             An array of integers representing the sampled error.
 
         """
-        error = np.zeros([self.num_edges], dtype=int)
+        error = np.zeros([self.num_qudits], dtype=int)
         def get_single_error() -> int:
             u = np.random.rand()
             outcome_index = np.searchsorted(self.cdf, u, side='left')
             return outcome_index
 
-        for edge in range(self.num_edges):
+        for edge in range(self.num_qudits):
             single_error = get_single_error()
             error[edge] = single_error
         return error
