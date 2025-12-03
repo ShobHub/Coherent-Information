@@ -346,7 +346,7 @@ def test_vertex_candidate_error(moebius_code_example):
         p = moebius_code.p
         for _ in range(10):
             error = np.random.randint(2 * p, size=moebius_code.num_edges)
-            syndrome = moebius_code.h_z @ error.T % (2 * p)
+            syndrome = moebius_code.get_vertex_syndrome(error)
             candidate_error = \
                 moebius_code.get_vertex_candidate_error(syndrome)
             syndrome_candidate = moebius_code.h_z @ candidate_error.T % (2 * p)
@@ -369,7 +369,7 @@ def test_plaquette_candidate_error(moebius_code_example):
         p = moebius_code.p
         for _ in range(10):
             error = np.random.randint(2 * p, size=moebius_code.num_edges)
-            syndrome = moebius_code.h_x @ error.T % (2 * p)
+            syndrome = moebius_code.get_plaquette_syndrome(error)
             candidate_error = \
                 moebius_code.get_plaquette_candidate_error(syndrome)
             syndrome_candidate = moebius_code.h_x @ candidate_error.T % (2 * p)
