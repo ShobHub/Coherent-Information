@@ -1,3 +1,5 @@
+'''Mathematica Code'''
+
 ClearAll[XOperator, ZOperator, VonNeumannEntropyBits];
 
 
