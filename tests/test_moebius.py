@@ -1,7 +1,7 @@
 # Tests for the generation of the Moebius code
 
 import pytest
-from coherentinfo.moebius import MoebiusCode
+from coherentinfo.moebius import MoebiusCodeOddPrime
 import numpy as np
 from typing import List, Tuple
 from numpy.typing import NDArray
@@ -13,27 +13,27 @@ def moebius_code_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
     examples = []
 
     # Example 0: length=5, width=3
-    moebius_code_0 = MoebiusCode(length=5, width=3, d=2 * 17)
+    moebius_code_0 = MoebiusCodeOddPrime(length=5, width=3, d=2 * 17)
     examples.append((moebius_code_0))
 
     # Example 1: length=7, width=9
-    moebius_code_1 = MoebiusCode(length=7, width=9, d=2 * 7)
+    moebius_code_1 = MoebiusCodeOddPrime(length=7, width=9, d=2 * 7)
     examples.append((moebius_code_1))
 
     # Example 2: length=11, width=21
-    moebius_code_2 = MoebiusCode(length=11, width=21, d=2 * 31)
+    moebius_code_2 = MoebiusCodeOddPrime(length=11, width=21, d=2 * 31)
     examples.append((moebius_code_2))
 
     # Example 3: length=17, width=27
-    moebius_code_3 = MoebiusCode(length=17, width=27, d=2 * 3)
+    moebius_code_3 = MoebiusCodeOddPrime(length=17, width=27, d=2 * 3)
     examples.append((moebius_code_3))
 
     # Example 4: length=5, width=45
-    moebius_code_4 = MoebiusCode(length=5, width=45, d=2 * 107)
+    moebius_code_4 = MoebiusCodeOddPrime(length=5, width=45, d=2 * 107)
     examples.append((moebius_code_4))
 
     # Example 5: length=5, width=45
-    moebius_code_5 = MoebiusCode(length=7, width=5, d=2 * 3)
+    moebius_code_5 = MoebiusCodeOddPrime(length=7, width=5, d=2 * 3)
     examples.append((moebius_code_5))
 
     return examples
@@ -101,14 +101,14 @@ def test_invalid_parameters() -> None:
     ]
     for length, width in invalid_params:
         with pytest.raises(ValueError):
-            MoebiusCode(length=length, width=width, d=2)
+            MoebiusCodeOddPrime(length=length, width=width, d=2 * 3)
 
 def test_hz() -> None:
     """Tests specific known values of the h_z matrix for a small 
     Moebius code."""
     length = 5
     width = 3
-    moebius_code = MoebiusCode(length=length, width=width, d=2)
+    moebius_code = MoebiusCodeOddPrime(length=length, width=width, d=2 * 3)
     h_z = moebius_code.h_z
 
     # Manually constructed expected h_z matrix for length=5, width=3
@@ -131,7 +131,7 @@ def test_hx() -> None:
     """Tests specific known values of the h_x matrix for a small Moebius code."""
     length = 5
     width = 3
-    moebius_code = MoebiusCode(length=length, width=width, d=2)
+    moebius_code = MoebiusCodeOddPrime(length=length, width=width, d=2 * 3)
     h_x = moebius_code.h_x
 
     expected_h_x = np.zeros([moebius_code.num_plaquette_checks,
@@ -276,17 +276,15 @@ def test_plaquette_destabilizer_qubit(moebius_code_example) -> None:
                 f"commute with the logical X in example #{idx}."
 
 
-def test_q_not_odd_prime() -> None:
+def test_p_not_odd_prime() -> None:
     """Tests that invalid dimension raise ValueError when trying to build
-    plaquette destabilizers."""
+    instantiate MoebiusCodeOddPrime"""
     invalid_dims = [2 * 4, 2 * 15, 2 * 2, 2 * 99]
 
     for dim in invalid_dims:
-        moebius_code = MoebiusCode(length=7, width=5, d=dim)
-        mat = moebius_code.plaquette_destab_type_two
-        assert mat is None, \
-                f"The plaquette destabilizers are not None as \n" \
-                f"expected for qudit dimension #{dim}"
+        for dim in invalid_dims:
+            with pytest.raises(ValueError):
+                MoebiusCodeOddPrime(length=7, width=5, d=dim)
 
         
 def test_plaquette_destabilizers_type_two(moebius_code_example) -> None:
