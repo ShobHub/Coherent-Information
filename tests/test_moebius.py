@@ -1,7 +1,7 @@
 # Tests for the generation of the Moebius code
 
 import pytest
-from coherentinfo.moebius import MoebiusCode
+from coherentinfo.moebius import MoebiusCodeOddPrime, MoebiusCodeQubit
 import numpy as np
 from typing import List, Tuple
 from numpy.typing import NDArray
@@ -13,27 +13,58 @@ def moebius_code_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
     examples = []
 
     # Example 0: length=5, width=3
-    moebius_code_0 = MoebiusCode(length=5, width=3, d=2 * 17)
+    moebius_code_0 = MoebiusCodeOddPrime(length=5, width=3, d=2 * 17)
     examples.append((moebius_code_0))
 
     # Example 1: length=7, width=9
-    moebius_code_1 = MoebiusCode(length=7, width=9, d=2 * 7)
+    moebius_code_1 = MoebiusCodeOddPrime(length=7, width=9, d=2 * 7)
     examples.append((moebius_code_1))
 
     # Example 2: length=11, width=21
-    moebius_code_2 = MoebiusCode(length=11, width=21, d=2 * 31)
+    moebius_code_2 = MoebiusCodeOddPrime(length=11, width=21, d=2 * 31)
     examples.append((moebius_code_2))
 
     # Example 3: length=17, width=27
-    moebius_code_3 = MoebiusCode(length=17, width=27, d=2 * 3)
+    moebius_code_3 = MoebiusCodeOddPrime(length=17, width=27, d=2 * 3)
     examples.append((moebius_code_3))
 
     # Example 4: length=5, width=45
-    moebius_code_4 = MoebiusCode(length=5, width=45, d=2 * 107)
+    moebius_code_4 = MoebiusCodeOddPrime(length=5, width=45, d=2 * 107)
     examples.append((moebius_code_4))
 
     # Example 5: length=5, width=45
-    moebius_code_5 = MoebiusCode(length=7, width=5, d=2 * 3)
+    moebius_code_5 = MoebiusCodeOddPrime(length=7, width=5, d=2 * 3)
+    examples.append((moebius_code_5))
+
+    return examples
+
+@pytest.fixture
+def moebius_code_qubit_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
+    """Provides example Moebius code matrices for testing."""
+    examples = []
+
+    # Example 0: length=5, width=3
+    moebius_code_0 = MoebiusCodeQubit(length=5, width=3)
+    examples.append((moebius_code_0))
+
+    # Example 1: length=7, width=9
+    moebius_code_1 = MoebiusCodeQubit(length=7, width=9)
+    examples.append((moebius_code_1))
+
+    # Example 2: length=11, width=21
+    moebius_code_2 = MoebiusCodeQubit(length=11, width=21)
+    examples.append((moebius_code_2))
+
+    # Example 3: length=17, width=27
+    moebius_code_3 = MoebiusCodeQubit(length=17, width=27)
+    examples.append((moebius_code_3))
+
+    # Example 4: length=5, width=45
+    moebius_code_4 = MoebiusCodeQubit(length=5, width=45)
+    examples.append((moebius_code_4))
+
+    # Example 5: length=5, width=45
+    moebius_code_5 = MoebiusCodeQubit(length=7, width=5)
     examples.append((moebius_code_5))
 
     return examples
@@ -101,14 +132,14 @@ def test_invalid_parameters() -> None:
     ]
     for length, width in invalid_params:
         with pytest.raises(ValueError):
-            MoebiusCode(length=length, width=width, d=2)
+            MoebiusCodeOddPrime(length=length, width=width, d=2 * 3)
 
 def test_hz() -> None:
     """Tests specific known values of the h_z matrix for a small 
     Moebius code."""
     length = 5
     width = 3
-    moebius_code = MoebiusCode(length=length, width=width, d=2)
+    moebius_code = MoebiusCodeOddPrime(length=length, width=width, d=2 * 3)
     h_z = moebius_code.h_z
 
     # Manually constructed expected h_z matrix for length=5, width=3
@@ -131,7 +162,7 @@ def test_hx() -> None:
     """Tests specific known values of the h_x matrix for a small Moebius code."""
     length = 5
     width = 3
-    moebius_code = MoebiusCode(length=length, width=width, d=2)
+    moebius_code = MoebiusCodeOddPrime(length=length, width=width, d=2 * 3)
     h_x = moebius_code.h_x
 
     expected_h_x = np.zeros([moebius_code.num_plaquette_checks,
@@ -276,17 +307,15 @@ def test_plaquette_destabilizer_qubit(moebius_code_example) -> None:
                 f"commute with the logical X in example #{idx}."
 
 
-def test_q_not_odd_prime() -> None:
+def test_p_not_odd_prime() -> None:
     """Tests that invalid dimension raise ValueError when trying to build
-    plaquette destabilizers."""
+    instantiate MoebiusCodeOddPrime"""
     invalid_dims = [2 * 4, 2 * 15, 2 * 2, 2 * 99]
 
     for dim in invalid_dims:
-        moebius_code = MoebiusCode(length=7, width=5, d=dim)
-        mat = moebius_code.plaquette_destab_type_two
-        assert mat is None, \
-                f"The plaquette destabilizers are not None as \n" \
-                f"expected for qudit dimension #{dim}"
+        for dim in invalid_dims:
+            with pytest.raises(ValueError):
+                MoebiusCodeOddPrime(length=7, width=5, d=dim)
 
         
 def test_plaquette_destabilizers_type_two(moebius_code_example) -> None:
@@ -382,6 +411,46 @@ def test_plaquette_candidate_error(moebius_code_example):
             error_diff = error - candidate_error
             res_logical_com_diff = error_diff @ moebius_code.logical_x.T % (2 * p)
             assert res_logical_com_diff == 0 or res_logical_com_diff == p, \
+                f"The difference between the error and the candidat error \n" \
+                f"does not commute or anti-commute with the logical X"
+            
+def test_vertex_candidate_error_qubit(moebius_code_qubit_example):
+    for idx, moebius_code in enumerate(moebius_code_qubit_example):
+        for _ in range(10):
+            error = np.random.randint(2, size=moebius_code.num_edges)
+            syndrome = moebius_code.get_vertex_syndrome(error)
+            candidate_error = \
+                moebius_code.get_vertex_candidate_error(syndrome)
+            syndrome_candidate = moebius_code.h_z @ candidate_error.T % 2
+            assert np.count_nonzero(syndrome - syndrome_candidate) == 0, \
+                f"The candidate error does not give the right syndrome in \n" \
+                f"examples #{idx}."
+            res_logical_com = candidate_error @ moebius_code.logical_z.T % 2
+            assert res_logical_com == 0, \
+                f"The candidate error does not commute with the logical Z"
+            error_diff = error - candidate_error
+            res_logical_com_diff = error_diff @ moebius_code.logical_z.T % 2
+            assert res_logical_com_diff == 0 or res_logical_com_diff == 1, \
+                f"The difference between the error and the candidat error \n" \
+                f"does not commute or anti-commute with the logical Z"
+
+def test_plaquette_candidate_error_qubit(moebius_code_qubit_example):
+    for idx, moebius_code in enumerate(moebius_code_qubit_example):
+        for _ in range(10):
+            error = np.random.randint(2, size=moebius_code.num_edges)
+            syndrome = moebius_code.get_plaquette_syndrome(error)
+            candidate_error = \
+                moebius_code.get_plaquette_candidate_error(syndrome)
+            syndrome_candidate = moebius_code.h_x_qubit @ candidate_error.T % 2
+            assert np.count_nonzero(syndrome - syndrome_candidate) == 0, \
+                f"The candidate error does not give the right syndrome in \n" \
+                f"examples #{idx}."
+            res_logical_com = candidate_error @ moebius_code.logical_x.T % 2
+            assert res_logical_com == 0, \
+                f"The candidate error does not commute with the logical X"
+            error_diff = error - candidate_error
+            res_logical_com_diff = error_diff @ moebius_code.logical_x.T % 2
+            assert res_logical_com_diff == 0 or res_logical_com_diff == 1, \
                 f"The difference between the error and the candidat error \n" \
                 f"does not commute or anti-commute with the logical X"
 

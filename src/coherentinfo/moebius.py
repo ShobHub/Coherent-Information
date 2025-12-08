@@ -49,10 +49,6 @@ class MoebiusCode:
     
     def compute_and_set_code_properties(self):
         """Helper method to run any time a parameter changes"""
-        if is_prime(np.int16(self.d / 2)) and np.int16(self.d / 2) != 2:
-            self.p = np.int16(self.d / 2)
-        else:
-            self.p = None
         self.num_h_edges = self.length * (self.width - 1)  # horizontal edges
         self.num_v_edges = self.length * self.width  # vertical edges
         self.num_edges = self.num_h_edges + self.num_v_edges
@@ -80,15 +76,8 @@ class MoebiusCode:
 
         # Destabilizers
         self.vertex_destab = self.build_vertex_destabilizers()
+        self.vertex_destab_qubit = self.vertex_destab % 2
         self.plaquette_destab_qubit = self.build_plaquette_destabilizers_qubit()
-        self.h_x_mod_p = self.h_x % self.p if self.p is not None else None
-        self.plaquette_destab_type_two = \
-            self.p * self.plaquette_destab_qubit if self.p is not None else None
-        self.plaquette_destab_mod_p = \
-            self.build_plaquette_destabilizers_mod_p() \
-                if self.p is not None else None
-        self.plaquette_destab_type_p = 2 * self.plaquette_destab_mod_p \
-            if self.p is not None else None
 
     @property
     def length(self):
@@ -328,13 +317,9 @@ class MoebiusCode:
                 logical_x[self.index_v(y, 0)] = -1
             else:
                 logical_x[self.index_v(y, 0)] = 1
-        # Note here we 
-        if self.p is not None:
-            return self.p * logical_x
-        else:
-            return logical_x
-    
 
+        return int(self.d / 2) * logical_x
+    
     def build_vertex_destabilizers(
         self
     ) -> NDArray:
@@ -375,7 +360,7 @@ class MoebiusCode:
         """ Returns the plaquette destabilizers assuming qubits as fundamental 
         system on the edges. Remember that the vertex destabilizers are 
         associated with Z-type errors. The more general case of qudits 
-        with d = 2 q and q a prime can be also obtained from the basic qubit 
+        with d = 2 p and p a prime can be also obtained from the basic qubit 
         case. 
 
         Returns:
@@ -411,22 +396,288 @@ class MoebiusCode:
     # the method above in the following way.
     build_plaquette_destabilizers_mod_two = \
         build_plaquette_destabilizers_qubit
+
+class MoebiusCodeQubit(MoebiusCode):
+    """ Subclass representing the Moebius code for the qubit case.
+    """
+
+    def __init__(self, length: int, width: int, d: int = 2):
+        """ Initializes the Moebius code. The strategy is to store
+        all the necessary data, since they would need to be called
+        repeatedly if we use this for computing the coherent 
+        information. 
+
+        Args:
+            length: Length of the Moebius strip (number of vertices 
+                along the length)
+            width: Width of the Moebius strip (number of vertices 
+                along the width)
+            d: qudit dimension. It is relevant for the logical operators.
+        """
+        if d != 2:
+            raise ValueError("d must be 2")
+
+        super().__init__(length, width, d)
     
-    # def build_plaquette_destabilizers_type_two(
-    #         self
-    # ) -> NDArray:
-    #     """ Returns the plaquette destabilizers associated with the 
-    #     stabilizers S_j^X[2] assuming  qudits with d = 2 p and p odd prime. 
-    #     These can be simply obtained from the qubit case.
+    def get_vertex_syndrome(
+        self,
+        error: NDArray
+    ) -> NDArray:
+        """Computes the vertex syndrome (Z-type) associated with 
+        error """
 
-    #     Returns:
-    #         The matrix of the plaquette destabilizers of type two.
-    #     """
+        return self.h_z @ error.T % self.d
+    
+    def get_plaquette_syndrome(
+        self,
+        error: NDArray
+    ) -> NDArray:
+        """Computes the plaquette syndrome (X-type) associated with 
+        error """
 
-    #     if self.p is not None:
-    #         return self.p * self.plaquette_destab_qubit
-    #     else:
-    #         None
+        return self.h_x_qubit @ error.T % self.d
+    
+    def get_vertex_candidate_error(
+        self,
+        syndrome: NDArray
+    ) -> NDArray:
+        """ Given a valid vertex syndrome it returns the candidate 
+        error vector, that generates the same syndrome and commutes 
+        with the logical Z. 
+
+        Args:
+            syndrome: syndrome vector 
+
+        Returns:
+            Candidate X-type error that gives the syndrome and commutes
+            with the logical Z.   
+        """
+        syndrome = syndrome % (self.d)
+        candidate = np.zeros(self.num_edges, dtype=np.int16)
+        for index in range(self.num_vertex_checks):
+            destab = self.vertex_destab[index, :]
+            candidate = (candidate + syndrome[index] * destab) % self.d 
+        return candidate % self.d
+    
+    def get_plaquette_candidate_error(
+        self,
+        syndrome: NDArray
+    ) -> NDArray:
+        """ Given a valid plaquette syndrome it returns the candidate 
+        error vector, that generate the same syndrome and commutes 
+        with the logical X.  
+
+        Args:
+            syndrome: syndrome vector
+        
+        Returns:
+            Candidate Z-type error that gives the syndrome and commutes
+            with the logical X. 
+        """
+        
+        syndrome = syndrome % self.d
+        
+        candidate = np.zeros(self.num_edges, dtype=np.int16)
+        for index in range(self.num_plaquette_checks - 1):
+            destab = self.plaquette_destab_qubit[index, :]
+            candidate = (candidate + \
+                syndrome[index] * destab) % self.d 
+
+        return candidate % self.d
+    
+    def compute_vertex_syndrome_chi_probabilities(
+        self,
+        num_samples: int,
+        error_model: ErrorModel
+    ) -> Dict:
+        """Computes the probability of observing a certain vertex syndrome
+        and a corresponding logical chi_x by sampling many errors 
+        
+        Args:
+            num_samples: number of samples used to evaluate the entropy
+            errormodel: an error model to generate error samples
+        
+        Returns:
+            Dictionary with syndrome and chi probabilities
+        """
+
+        result = {}
+
+        for _ in range(num_samples):
+            error = error_model.generate_random_error()
+            syndrome = self.get_vertex_syndrome(error)
+            candidate_error = self.get_vertex_candidate_error(syndrome)
+            error_diff = error - candidate_error 
+            res_logical_com_diff = error_diff @ self.logical_z.T % self.d
+            chi = int(res_logical_com_diff)
+            syndrome_chi_id = "_".join(map(str, syndrome))
+            if syndrome_chi_id in result.keys():
+                result[syndrome_chi_id][chi] += 1 / num_samples
+            else:
+                result[syndrome_chi_id] = [0.0, 0.0]
+                result[syndrome_chi_id][chi] = 1 / num_samples
+        return result
+    
+    def compute_vertex_conditional_entropy(
+        self,
+        num_samples: int,
+        error_model: ErrorModel
+    ) -> float:
+        """Computes the vertex entropy H(chi_x| sigma_z) 
+        
+        Args:
+            num_samples: number of samples used to evaluate the entropy
+            errormodel: an error model to generate error samples
+        
+        Returns
+            The vertex conditional entropy
+        """
+
+        result = self.compute_vertex_syndrome_chi_probabilities(
+            num_samples, error_model
+            )
+        
+        entropy = 0.0
+        for key in result.keys():
+            prob_syndrome = sum(result[key])
+            cond_prob_syndrome_chi_zero = result[key][0] / prob_syndrome
+            cond_prob_syndrome_chi_one = result[key][1] / prob_syndrome
+            entropy += -scipy.special.xlogy(result[key][0], 
+                                           cond_prob_syndrome_chi_zero) 
+            entropy += -scipy.special.xlogy(result[key][1], 
+                                           cond_prob_syndrome_chi_one) 
+        # Convert to base 2 entropy
+        entropy = entropy / np.log(2)
+        return entropy
+    
+                
+    def compute_plaquette_syndrome_chi_probabilities(
+        self,
+        num_samples: int,
+        error_model: ErrorModel
+    ) -> Dict:
+        """Computes the probability of observing a certain plaquette syndrome
+        and a corresponding logical chi_z by sampling many errors 
+        
+        Args:
+            num_samples: number of samples used to evaluate the entropy
+            errormodel: an error model to generate error samples
+
+        Returns:
+            Dictionary with syndrome and chi probabilities
+        """
+
+        result = {}
+
+        for _ in range(num_samples):
+            error = error_model.generate_random_error()
+            syndrome = self.get_plaquette_syndrome(error)
+            candidate_error = self.get_plaquette_candidate_error(syndrome)
+            error_diff = error - candidate_error 
+            res_logical_com_diff = error_diff @ self.logical_x.T % self.d
+            chi = int(res_logical_com_diff)
+            syndrome_chi_id = "_".join(map(str, syndrome))
+            if syndrome_chi_id in result.keys():
+                result[syndrome_chi_id][chi] += 1 / num_samples
+            else:
+                result[syndrome_chi_id] = [0.0, 0.0]
+                result[syndrome_chi_id][chi] = 1 / num_samples
+        return result
+    
+    def compute_plaquette_conditional_entropy(
+        self,
+        num_samples: int,
+        error_model: ErrorModel
+    ) -> float:
+        """Computes the plaquette conditional entropy H(chi_z| sigma_X) 
+        
+        Args:
+            num_samples: number of samples used to evaluate the entropy
+            errormodel: an error model to generate error samples
+        
+        Returns
+            The plaquette conditional entropy
+        """
+
+        result = self.compute_plaquette_syndrome_chi_probabilities(
+            num_samples, error_model
+            )
+        
+        entropy = 0.0
+        for key in result.keys():
+            prob_syndrome = sum(result[key])
+            cond_prob_syndrome_chi_zero = result[key][0] / prob_syndrome
+            cond_prob_syndrome_chi_one = result[key][1] / prob_syndrome
+            entropy += -scipy.special.xlogy(result[key][0], 
+                                           cond_prob_syndrome_chi_zero) 
+            entropy += -scipy.special.xlogy(result[key][1], 
+                                           cond_prob_syndrome_chi_one) 
+        # Convert to base 2 entropy
+        entropy = entropy / np.log(2)
+        return entropy
+    
+    def compute_coherent_information(
+        self,
+        num_samples: int,
+        error_model,
+    ) -> float:
+        """Computes the coherent information 
+        
+        Args:
+            num_samples: number of samples used to evaluate the entropy
+            errormodel: an error model to generate error samples
+        
+        Returns:
+            The coherent information
+        """
+
+        vertex_entropy = self.compute_vertex_conditional_entropy(
+            num_samples, 
+            error_model
+            )
+        plaquette_entropy = self.compute_plaquette_conditional_entropy(
+            num_samples, 
+            error_model
+            )
+        
+        coherent_info = 1.0 - vertex_entropy - plaquette_entropy
+        return coherent_info
+
+class MoebiusCodeOddPrime(MoebiusCode):
+    """ Subclass representing the Moebius code when d = 2 * p
+    and p is an odd prime.
+    """
+
+    def __init__(self, length: int, width: int, d: int = 2):
+        """ Initializes the Moebius code. The strategy is to store
+        all the necessary data, since they would need to be called
+        repeatedly if we use this for computing the coherent 
+        information. 
+
+        Args:
+            length: Length of the Moebius strip (number of vertices 
+                along the length)
+            width: Width of the Moebius strip (number of vertices 
+                along the width)
+            d: qudit dimension. It is relevant for the logical operators.
+        """
+        if is_prime(np.int16(d / 2)) and np.int16(d / 2) != 2:
+            self.p = np.int16(d / 2)
+        else:
+            raise ValueError("d must be 2 * p with p odd prime.")
+
+        super().__init__(length, width, d)
+    
+    def compute_and_set_code_properties(self):
+        """Helper method to run any time a parameter changes"""
+        # This calls the parent version
+        super().compute_and_set_code_properties()
+        self.h_x_mod_p = self.h_x % self.p
+        self.plaquette_destab_type_two = \
+            self.p * self.plaquette_destab_qubit 
+        self.plaquette_destab_mod_p = \
+            self.build_plaquette_destabilizers_mod_p() 
+        self.plaquette_destab_type_p = 2 * self.plaquette_destab_mod_p
     
     @staticmethod    
     def finite_field_right_pseudoinverse(
@@ -470,7 +721,6 @@ class MoebiusCode:
         
         return pseudo_inv_mat
 
-
     def build_plaquette_destabilizers_mod_p(
         self
     ) -> Tuple[NDArray, NDArray] | None:
@@ -482,13 +732,10 @@ class MoebiusCode:
             The matrix of the pre-plaquette destabilizers of type p.
         """
 
-        if self.p is not None:
-            plaquette_destab_qupit = \
-                self.finite_field_right_pseudoinverse(self.h_x, 
-                                                      self.p)
-            return plaquette_destab_qupit.T
-        else:
-            return None
+        plaquette_destab_qupit = \
+            self.finite_field_right_pseudoinverse(self.h_x, 
+                                                  self.p)
+        return plaquette_destab_qupit.T
 
     def build_plaquette_destabilizers_type_p(
         self
@@ -500,17 +747,14 @@ class MoebiusCode:
             The matrix of the plaquette destabilizers of type p.
         """
 
-        if self.p is not None:
-            return 2 * self.build_plaquette_destabilizers_mod_p()
-        else:
-            return None
+        return 2 * self.build_plaquette_destabilizers_mod_p()
     
     def get_vertex_syndrome(
         self,
         error: NDArray
     ) -> NDArray:
         """Computes the vertex syndrome (Z-type) associated with 
-        and error """
+        error """
 
         return self.h_z @ error.T % self.d
     
@@ -519,7 +763,7 @@ class MoebiusCode:
         error: NDArray
     ) -> NDArray:
         """Computes the plaquette syndrome (X-type) associated with 
-        and error """
+        error """
 
         return self.h_x @ error.T % self.d
     
@@ -529,7 +773,14 @@ class MoebiusCode:
     ) -> NDArray:
         """ Given a valid vertex syndrome it returns the candidate 
         error vector, that generates the same syndrome and commutes 
-        with the logical Z.   
+        with the logical Z. 
+
+        Args:
+            syndrome: syndrome vector 
+
+        Returns:
+            Candidate X-type error that gives the syndrome and commutes
+            with the logical Z.   
         """
         syndrome = syndrome % (self.d)
         candidate = np.zeros(self.num_edges, dtype=np.int16)
@@ -544,7 +795,14 @@ class MoebiusCode:
     ) -> NDArray:
         """ Given a valid plaquette syndrome it returns the candidate 
         error vector, that generate the same syndrome and commutes 
-        with the logical X.   
+        with the logical X.  
+
+        Args:
+            syndrome: syndrome vector
+        
+        Returns:
+            Candidate Z-type error that gives the syndrome and commutes
+            with the logical X. 
         """
         
         syndrome = syndrome % self.d
@@ -731,6 +989,11 @@ class MoebiusCode:
         
         coherent_info = 1.0 - vertex_entropy - plaquette_entropy
         return coherent_info
+
+
+
+
+
         
     
     
