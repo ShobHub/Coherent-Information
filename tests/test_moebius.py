@@ -340,7 +340,7 @@ def test_rank_moebius(moebius_code_example) -> None:
     F_q with p = d / 2"""
     for idx, moebius_code in enumerate(moebius_code_example):
         p = moebius_code.p
-        h_x = moebius_code.h_x
+        h_x = np.array(moebius_code.h_x)
         num_plaquette_checks = moebius_code.num_plaquette_checks 
         rank_h_x = finite_field_matrix_rank(h_x % moebius_code.d, p)
         assert rank_h_x == num_plaquette_checks, \

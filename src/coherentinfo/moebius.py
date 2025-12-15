@@ -3,10 +3,13 @@
 import numpy as np
 from typing import Tuple, Dict
 from numpy.typing import NDArray
+from jax import Array
+from jax.typing import ArrayLike
 from coherentinfo.linalg import (is_prime,
                                  finite_field_gauss_jordan_elimination)
 from coherentinfo.errormodel import ErrorModel
 import scipy 
+import jax.numpy as jnp
 
 
 
@@ -68,7 +71,7 @@ class MoebiusCode:
         # bottom left plaquette
 
         self.h_z_qubit = self.h_z % 2
-        self.h_x_qubit = np.delete(self.h_x, 0, axis=0) % 2
+        self.h_x_qubit = jnp.delete(self.h_x, 0, axis=0) % 2
 
         # Logicals
         self.logical_z = self.get_logical_z()
@@ -156,7 +159,7 @@ class MoebiusCode:
 
     def build_moebius_code_vertex(
         self
-    ) -> NDArray:
+    ) -> Array:
         """ Generates the Moebius code vertex checks.
         
         Returns:
@@ -197,13 +200,13 @@ class MoebiusCode:
                         row[self.index_v(y + 1, 0)] = -1
                         rows.append(row)
 
-        h_z = np.array(rows, dtype=np.int16)
+        h_z = jnp.array(rows, dtype=np.int16)
 
         return h_z
 
     def build_moebius_code_plaquette(
         self
-    ) -> NDArray:
+    ) -> Array:
         """ Generates the Moebius code plaquette checks.
         
         Returns:
@@ -277,13 +280,13 @@ class MoebiusCode:
                     
                 rows.append(row)
         
-        h_x = np.array(rows, dtype=np.int16)
+        h_x = jnp.array(rows, dtype=np.int16)
 
         return h_x
     
     def get_logical_z(
         self
-    ) -> NDArray:
+    ) -> Array:
         """ Returns the logical Z operator. This is defined as in the notes
         Z_logical = Z_1^{d/2} \tensor ... \tensor Z_length^{d/2}
         along the central line of vertical edges. 
@@ -297,11 +300,11 @@ class MoebiusCode:
         y0 = self.width // 2
         for x in range(self.length):
             logical_z[self.index_v(y0, x)] = np.int16(self.d / 2)
-        return logical_z
+        return jnp.array(logical_z)
     
     def get_logical_x(
         self
-    ) -> NDArray:
+    ) -> Array:
         """ Returns the logical X operator. This is defined as in the notes
         X_logical = X_1 \tensor X_2^{-1} \tensor ... \tensor X_width
         along the first columns of vertical qudits. 
@@ -318,11 +321,11 @@ class MoebiusCode:
             else:
                 logical_x[self.index_v(y, 0)] = 1
 
-        return int(self.d / 2) * logical_x
+        return jnp.array(int(self.d / 2) * logical_x)
     
     def build_vertex_destabilizers(
         self
-    ) -> NDArray:
+    ) -> Array:
         """ Returns the vertex destabilizers. Remember that the vertex 
         destabilizers are associated with X-type errors. 
 
@@ -350,13 +353,13 @@ class MoebiusCode:
                 rows.append(row)
 
 
-        vertex_destab = np.array(rows, dtype=np.int16)
+        vertex_destab = jnp.array(rows, dtype=np.int16)
 
         return vertex_destab
 
     def build_plaquette_destabilizers_qubit(
         self
-    ) -> NDArray:
+    ) -> Array:
         """ Returns the plaquette destabilizers assuming qubits as fundamental 
         system on the edges. Remember that the vertex destabilizers are 
         associated with Z-type errors. The more general case of qudits 
@@ -390,7 +393,7 @@ class MoebiusCode:
         plaquette_destab_qubit = np.array(rows, dtype=np.int16)
         plaquette_destab_qubit = np.delete(plaquette_destab_qubit, 0, axis=0)
 
-        return plaquette_destab_qubit
+        return jnp.array(plaquette_destab_qubit, dtype=np.int16)
     
     # It is convenient when we study qudits to be able to call
     # the method above in the following way.
@@ -421,25 +424,25 @@ class MoebiusCodeQubit(MoebiusCode):
     
     def get_vertex_syndrome(
         self,
-        error: NDArray
-    ) -> NDArray:
+        error: ArrayLike
+    ) -> Array:
         """Computes the vertex syndrome (Z-type) associated with 
         error """
 
-        return self.h_z @ error.T % self.d
+        return jnp.mod(jnp.dot(self.h_z_qubit, error.T), self.d)
     
     def get_plaquette_syndrome(
         self,
-        error: NDArray
-    ) -> NDArray:
+        error: ArrayLike
+    ) -> Array:
         """Computes the plaquette syndrome (X-type) associated with 
         error """
 
-        return self.h_x_qubit @ error.T % self.d
+        return jnp.mod(jnp.dot(self.h_x_qubit, error.T), self.d)
     
     def get_vertex_candidate_error(
         self,
-        syndrome: NDArray
+        syndrome: ArrayLike
     ) -> NDArray:
         """ Given a valid vertex syndrome it returns the candidate 
         error vector, that generates the same syndrome and commutes 
@@ -452,19 +455,18 @@ class MoebiusCodeQubit(MoebiusCode):
             Candidate X-type error that gives the syndrome and commutes
             with the logical Z.   
         """
-        syndrome = syndrome % (self.d)
-        candidate = np.zeros(self.num_edges, dtype=np.int16)
-        for index in range(self.num_vertex_checks):
-            destab = self.vertex_destab[index, :]
-            candidate = (candidate + syndrome[index] * destab) % self.d 
-        return candidate % self.d
+        syndrome = jnp.mod(syndrome, self.d)
+        candidate = jnp.zeros(self.num_edges, dtype=np.int16)
+        vertex_destab_j = jnp.asarray(self.vertex_destab)
+        candidate = jnp.mod(jnp.dot(syndrome, vertex_destab_j), self.d)
+        return candidate
     
     def get_plaquette_candidate_error(
         self,
-        syndrome: NDArray
+        syndrome: ArrayLike
     ) -> NDArray:
         """ Given a valid plaquette syndrome it returns the candidate 
-        error vector, that generate the same syndrome and commutes 
+        error vector, that generates the same syndrome and commutes 
         with the logical X.  
 
         Args:
@@ -475,17 +477,14 @@ class MoebiusCodeQubit(MoebiusCode):
             with the logical X. 
         """
         
-        syndrome = syndrome % self.d
+        syndrome = jnp.mod(syndrome, self.d)
         
-        candidate = np.zeros(self.num_edges, dtype=np.int16)
-        for index in range(self.num_plaquette_checks - 1):
-            destab = self.plaquette_destab_qubit[index, :]
-            candidate = (candidate + \
-                syndrome[index] * destab) % self.d 
-
-        return candidate % self.d
+        candidate = jnp.zeros(self.num_edges, dtype=np.int16)
+        plaquette_destab_j = jnp.asarray(self.plaquette_destab_qubit)
+        candidate = jnp.mod(jnp.dot(syndrome, plaquette_destab_j), self.d)
+        return candidate
     
-    def compute_vertex_syndrome_chi_probabilities(
+    def compute_vertex_syndrome_chi_probabilities_jax(
         self,
         num_samples: int,
         error_model: ErrorModel
@@ -509,7 +508,7 @@ class MoebiusCodeQubit(MoebiusCode):
             candidate_error = self.get_vertex_candidate_error(syndrome)
             error_diff = error - candidate_error 
             res_logical_com_diff = error_diff @ self.logical_z.T % self.d
-            chi = int(res_logical_com_diff)
+            chi = jnp.int16(res_logical_com_diff)
             syndrome_chi_id = "_".join(map(str, syndrome))
             if syndrome_chi_id in result.keys():
                 result[syndrome_chi_id][chi] += 1 / num_samples
