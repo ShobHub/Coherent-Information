@@ -70,8 +70,8 @@ class MoebiusCode:
         # We conventionally pop the first row, which corresponds to the 
         # bottom left plaquette
 
-        self.h_z_qubit = self.h_z % 2
-        self.h_x_qubit = jnp.delete(self.h_x, 0, axis=0) % 2
+        self.h_z_qubit = jnp.mod(self.h_z, 2)
+        self.h_x_qubit = jnp.mod(jnp.delete(self.h_x, 0, axis=0), 2)
 
         # Logicals
         self.logical_z = self.get_logical_z()
@@ -79,7 +79,7 @@ class MoebiusCode:
 
         # Destabilizers
         self.vertex_destab = self.build_vertex_destabilizers()
-        self.vertex_destab_qubit = self.vertex_destab % 2
+        self.vertex_destab_qubit = jnp.mod(self.vertex_destab, 2)
         self.plaquette_destab_qubit = self.build_plaquette_destabilizers_qubit()
 
     @property
@@ -200,7 +200,7 @@ class MoebiusCode:
                         row[self.index_v(y + 1, 0)] = -1
                         rows.append(row)
 
-        h_z = jnp.array(rows, dtype=np.int16)
+        h_z = jnp.array(rows, dtype=jnp.int16)
 
         return h_z
 
@@ -280,7 +280,7 @@ class MoebiusCode:
                     
                 rows.append(row)
         
-        h_x = jnp.array(rows, dtype=np.int16)
+        h_x = jnp.array(rows, dtype=jnp.int16)
 
         return h_x
     
@@ -300,7 +300,7 @@ class MoebiusCode:
         y0 = self.width // 2
         for x in range(self.length):
             logical_z[self.index_v(y0, x)] = np.int16(self.d / 2)
-        return jnp.array(logical_z)
+        return jnp.array(logical_z, dtype=jnp.int16)
     
     def get_logical_x(
         self
@@ -321,7 +321,7 @@ class MoebiusCode:
             else:
                 logical_x[self.index_v(y, 0)] = 1
 
-        return jnp.array(int(self.d / 2) * logical_x)
+        return jnp.array(jnp.int16(self.d / 2) * logical_x, dtype=jnp.int16)
     
     def build_vertex_destabilizers(
         self
@@ -353,7 +353,7 @@ class MoebiusCode:
                 rows.append(row)
 
 
-        vertex_destab = jnp.array(rows, dtype=np.int16)
+        vertex_destab = jnp.array(rows, dtype=jnp.int16)
 
         return vertex_destab
 
@@ -393,7 +393,7 @@ class MoebiusCode:
         plaquette_destab_qubit = np.array(rows, dtype=np.int16)
         plaquette_destab_qubit = np.delete(plaquette_destab_qubit, 0, axis=0)
 
-        return jnp.array(plaquette_destab_qubit, dtype=np.int16)
+        return jnp.array(plaquette_destab_qubit, dtype=jnp.int16)
     
     # It is convenient when we study qudits to be able to call
     # the method above in the following way.
@@ -484,7 +484,7 @@ class MoebiusCodeQubit(MoebiusCode):
         candidate = jnp.mod(jnp.dot(syndrome, plaquette_destab_j), self.d)
         return candidate
     
-    def compute_vertex_syndrome_chi_probabilities_jax(
+    def compute_vertex_syndrome_chi_probabilities(
         self,
         num_samples: int,
         error_model: ErrorModel
@@ -503,19 +503,21 @@ class MoebiusCodeQubit(MoebiusCode):
         result = {}
 
         for _ in range(num_samples):
-            error = error_model.generate_random_error()
+            error = jnp.array(error_model.generate_random_error(), dtype=jnp.int16)
             syndrome = self.get_vertex_syndrome(error)
             candidate_error = self.get_vertex_candidate_error(syndrome)
             error_diff = error - candidate_error 
-            res_logical_com_diff = error_diff @ self.logical_z.T % self.d
+            res_logical_com_diff = \
+                jnp.mod(jnp.dot(error_diff, self.logical_z.T), self.d)
             chi = jnp.int16(res_logical_com_diff)
             syndrome_chi_id = "_".join(map(str, syndrome))
             if syndrome_chi_id in result.keys():
-                result[syndrome_chi_id][chi] += 1 / num_samples
+                result[syndrome_chi_id][chi] += 1
             else:
-                result[syndrome_chi_id] = [0.0, 0.0]
-                result[syndrome_chi_id][chi] = 1 / num_samples
+                result[syndrome_chi_id] = [0, 0]
+                result[syndrome_chi_id][chi] = 1
         return result
+
     
     def compute_vertex_conditional_entropy(
         self,
@@ -538,7 +540,7 @@ class MoebiusCodeQubit(MoebiusCode):
         
         entropy = 0.0
         for key in result.keys():
-            prob_syndrome = sum(result[key])
+            prob_syndrome = sum(result[key]) / num_samples
             cond_prob_syndrome_chi_zero = result[key][0] / prob_syndrome
             cond_prob_syndrome_chi_one = result[key][1] / prob_syndrome
             entropy += -scipy.special.xlogy(result[key][0], 
@@ -546,7 +548,7 @@ class MoebiusCodeQubit(MoebiusCode):
             entropy += -scipy.special.xlogy(result[key][1], 
                                            cond_prob_syndrome_chi_one) 
         # Convert to base 2 entropy
-        entropy = entropy / np.log(2)
+        entropy = entropy / jnp.log(2) 
         return entropy
     
                 
@@ -569,18 +571,19 @@ class MoebiusCodeQubit(MoebiusCode):
         result = {}
 
         for _ in range(num_samples):
-            error = error_model.generate_random_error()
+            error = jnp.array(error_model.generate_random_error(), dtype=jnp.int16)
             syndrome = self.get_plaquette_syndrome(error)
             candidate_error = self.get_plaquette_candidate_error(syndrome)
             error_diff = error - candidate_error 
-            res_logical_com_diff = error_diff @ self.logical_x.T % self.d
-            chi = int(res_logical_com_diff)
+            res_logical_com_diff = \
+                jnp.mod(jnp.dot(error_diff, self.logical_x.T), self.d)
+            chi = jnp.int16(res_logical_com_diff)
             syndrome_chi_id = "_".join(map(str, syndrome))
             if syndrome_chi_id in result.keys():
-                result[syndrome_chi_id][chi] += 1 / num_samples
+                result[syndrome_chi_id][chi] += 1
             else:
-                result[syndrome_chi_id] = [0.0, 0.0]
-                result[syndrome_chi_id][chi] = 1 / num_samples
+                result[syndrome_chi_id] = [0, 0]
+                result[syndrome_chi_id][chi] = 1
         return result
     
     def compute_plaquette_conditional_entropy(
@@ -604,7 +607,7 @@ class MoebiusCodeQubit(MoebiusCode):
         
         entropy = 0.0
         for key in result.keys():
-            prob_syndrome = sum(result[key])
+            prob_syndrome = sum(result[key]) / num_samples
             cond_prob_syndrome_chi_zero = result[key][0] / prob_syndrome
             cond_prob_syndrome_chi_one = result[key][1] / prob_syndrome
             entropy += -scipy.special.xlogy(result[key][0], 
