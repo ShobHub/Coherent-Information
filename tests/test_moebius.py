@@ -2,6 +2,7 @@
 
 import pytest
 from coherentinfo.moebius import MoebiusCodeOddPrime, MoebiusCodeQubit
+from coherentinfo.errormodel import ErrorModelBernoulliJax
 import numpy as np
 from typing import List, Tuple
 from numpy.typing import NDArray
@@ -453,6 +454,35 @@ def test_plaquette_candidate_error_qubit(moebius_code_qubit_example):
             assert res_logical_com_diff == 0 or res_logical_com_diff == 1, \
                 f"The difference between the error and the candidat error \n" \
                 f"does not commute or anti-commute with the logical X"
+
+def test_batch_qubit(moebius_code_qubit_example):
+    for idx, moebius_code in enumerate(moebius_code_qubit_example):
+        num_samples = 100
+        for _ in range(10):
+            error_model = ErrorModelBernoulliJax(
+                moebius_code.num_edges, 2, 0.1
+                )
+            res_vertex = moebius_code.compute_batched_vertex_syndrome_chi_z(
+                    num_samples, error_model
+                    )
+            exp_shape = \
+                res_vertex.shape == (num_samples, 
+                                    moebius_code.num_vertex_checks + 1)
+            assert exp_shape, \
+                f"The vertex result does not have the expected shape \n "\
+                f"for example #{idx}"
+            
+            res_plaquette = \
+                moebius_code.compute_batched_plaquette_syndrome_chi_x(
+                    num_samples, error_model
+                    )
+            exp_shape = \
+                res_plaquette.shape == (num_samples, 
+                                    moebius_code.num_plaquette_checks)
+            assert exp_shape, \
+                f"The plaquette result does not have the expected shape\n "\
+                f"for example #{idx}"
+
 
 
 

@@ -484,7 +484,7 @@ class MoebiusCodeQubit(MoebiusCode):
         candidate = jnp.mod(jnp.dot(syndrome, plaquette_destab_j), self.d)
         return candidate
     
-    def compute_vertex_syndrome_chi(
+    def compute_vertex_syndrome_chi_z(
         self,
         error: ArrayLike
     ) -> Array:
@@ -507,7 +507,7 @@ class MoebiusCodeQubit(MoebiusCode):
         chi_z = jnp.int16(res_logical_com_diff)
         return jnp.append(syndrome, chi_z)
     
-    def compute_batched_vertex_syndrome_chi(
+    def compute_batched_vertex_syndrome_chi_z(
         self,
         num_samples: int, 
         error_model: ErrorModel
@@ -527,12 +527,15 @@ class MoebiusCodeQubit(MoebiusCode):
         master_vertex_key = jax.random.PRNGKey(48090)
         vertex_keys = jax.random.split(master_vertex_key, num_samples)
 
-        batched_generate_random_error = jax.vmap(error_model.generate_random_error)
+        batched_generate_random_error = \
+            jax.vmap(error_model.generate_random_error)
 
         vertex_errors = batched_generate_random_error(vertex_keys)
 
-        compute_vertex_syndrome_chi_jit = jax.jit(self.compute_vertex_syndrome_chi)
-        vertex_result = jax.vmap(compute_vertex_syndrome_chi_jit)(vertex_errors)
+        compute_vertex_syndrome_chi_z_jit = \
+            jax.jit(self.compute_vertex_syndrome_chi_z)
+        vertex_result = \
+            jax.vmap(compute_vertex_syndrome_chi_z_jit)(vertex_errors)
         return vertex_result
 
     
@@ -569,7 +572,7 @@ class MoebiusCodeQubit(MoebiusCode):
     #     return entropy
     
                 
-    def compute_plaquette_syndrome_chi(
+    def compute_plaquette_syndrome_chi_x(
         self,
         error: ArrayLike
     ) -> Array:
@@ -592,7 +595,7 @@ class MoebiusCodeQubit(MoebiusCode):
         chi_x = jnp.int16(res_logical_com_diff)
         return jnp.append(syndrome, chi_x)
     
-    def compute_batched_plaquette_syndrome_chi(
+    def compute_batched_plaquette_syndrome_chi_x(
         self,
         num_samples: int, 
         error_model: ErrorModel
@@ -607,7 +610,8 @@ class MoebiusCodeQubit(MoebiusCode):
         
         Returns:
             An array where in each row the first num_plaquette - 1 
-            (independent) elements are the syndromes and the last one is the chi_x.
+            (independent) elements are the syndromes and the last 
+            one is the chi_x.
         """
         master_plaquette_key = jax.random.PRNGKey(687090)
         plaquette_keys = jax.random.split(master_plaquette_key, num_samples)
@@ -616,8 +620,10 @@ class MoebiusCodeQubit(MoebiusCode):
 
         plaquette_errors = batched_generate_random_error(plaquette_keys)
 
-        compute_plaquette_syndrome_chi_jit = jax.jit(self.compute_plaquette_syndrome_chi)
-        plaquette_result = jax.vmap(compute_plaquette_syndrome_chi_jit)(plaquette_errors)
+        compute_plaquette_syndrome_chi_x_jit = \
+            jax.jit(self.compute_plaquette_syndrome_chi_x)
+        plaquette_result = \
+            jax.vmap(compute_plaquette_syndrome_chi_x_jit)(plaquette_errors)
         return plaquette_result
     
     # def compute_plaquette_conditional_entropy(
