@@ -1,6 +1,7 @@
 # Contains functions to postprocess the sampled data 
 # and compute the coherent information.
 
+import jax
 import jax.numpy as jnp
 from jax import Array, jit
 from typing import Tuple
@@ -24,7 +25,8 @@ def aggregate_data(result: Array) -> Tuple[Array, Array]:
     flags = result[:, -1].astype(jnp.int16) # Shape: num_data, (0 or 1)
 
     # 2. Find unique prefixes and assign a unique index to each original row
-    # 'indices' will map each original row to a unique index ID (0 to K-1)
+    # 'indices' will map each original row to a unique index ID 
+    # (0 to num_unique-1)
     unique_syndromes, indices = jnp.unique(
         syndrome_rows, 
         axis=0, 
@@ -60,5 +62,60 @@ def aggregate_data(result: Array) -> Tuple[Array, Array]:
         jnp.stack([counts_of_zeros, counts_of_ones], axis=1) / num_data
 
     return unique_syndromes, sampled_freqs_zero_and_one
+
+def compute_conditional_entropy_term(
+    probs_zero_and_one: Array
+) -> Array:
+    """Computes the entropy term associated with a syndrome in 
+    the expression for the conditional entropy 
+    
+    Args:
+        probs_zero_and_one: probabilities of having a certain syndrome
+            with chi either zero or one. Typically these are estimated
+            from sample frequencies. The array must have length 2.
+    
+    Returns:
+        -prob(syndrome, 0) log_2 prob(0| syndrome) 
+            -prob(syndrome, 1) log_2 prob(1| syndrome) 
+
+
+    """
+    prob_syndrome = jnp.sum(probs_zero_and_one)
+    cond_prob_zero = probs_zero_and_one[0] / prob_syndrome 
+    cond_prob_one = probs_zero_and_one[1] / prob_syndrome
+    entropy_term_a = -jax.scipy.special.xlogy(
+        probs_zero_and_one[0], 
+        cond_prob_zero
+    )
+    entropy_term_b = -jax.scipy.special.xlogy(
+        probs_zero_and_one[1], 
+        cond_prob_one
+    )
+    return (entropy_term_a + entropy_term_b) / jnp.log(2)
+
+def conditional_entropy(
+    probs_zero_and_one: Array
+) -> Array:
+    """Computes the conditional entropy associated with the probabilities
+    of observing a certain syndrome and chi either 0 or 1
+    
+    Args:
+        probs_zero_and_one: array of probabilities of having the observed 
+            syndromes with chi either zero or one. Typically these are 
+            estimated from sample frequencies.
+    
+    Returns:
+        sum_{syndrome} (-prob(syndrome, 0) log_2 prob(0| syndrome) 
+            -prob(syndrome, 1) log_2 prob(1| syndrome) )
+    """
+
+    compute_conditional_entropy_term_jit = jax.jit(compute_conditional_entropy_term)
+    entropy_terms = jax.vmap(compute_conditional_entropy_term_jit)(probs_zero_and_one)
+    return jnp.sum(entropy_terms)
+
+
+
+
+
 
 
