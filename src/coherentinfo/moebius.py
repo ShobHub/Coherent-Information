@@ -464,7 +464,7 @@ class MoebiusCodeQubit(MoebiusCode):
     def get_plaquette_candidate_error(
         self,
         syndrome: ArrayLike
-    ) -> NDArray:
+    ) -> Array:
         """ Given a valid plaquette syndrome it returns the candidate 
         error vector, that generates the same syndrome and commutes 
         with the logical X.  
@@ -484,11 +484,10 @@ class MoebiusCodeQubit(MoebiusCode):
         candidate = jnp.mod(jnp.dot(syndrome, plaquette_destab_j), self.d)
         return candidate
     
-    def compute_vertex_syndrome_chi_probabilities(
+    def compute_vertex_syndrome_chi(
         self,
-        num_samples: int,
-        error_model: ErrorModel
-    ) -> Dict:
+        error: ArrayLike
+    ) -> Array:
         """Computes the probability of observing a certain vertex syndrome
         and a corresponding logical chi_x by sampling many errors 
         
@@ -500,23 +499,15 @@ class MoebiusCodeQubit(MoebiusCode):
             Dictionary with syndrome and chi probabilities
         """
 
-        result = {}
-
-        for _ in range(num_samples):
-            error = jnp.array(error_model.generate_random_error(), dtype=jnp.int16)
-            syndrome = self.get_vertex_syndrome(error)
-            candidate_error = self.get_vertex_candidate_error(syndrome)
-            error_diff = error - candidate_error 
-            res_logical_com_diff = \
-                jnp.mod(jnp.dot(error_diff, self.logical_z.T), self.d)
-            chi = jnp.int16(res_logical_com_diff)
-            syndrome_chi_id = "_".join(map(str, syndrome))
-            if syndrome_chi_id in result.keys():
-                result[syndrome_chi_id][chi] += 1
-            else:
-                result[syndrome_chi_id] = [0, 0]
-                result[syndrome_chi_id][chi] = 1
-        return result
+        syndrome = self.get_vertex_syndrome(error)
+        candidate_error = self.get_vertex_candidate_error(syndrome)
+        error_diff = error - candidate_error 
+        res_logical_com_diff = \
+            jnp.mod(jnp.dot(error_diff, self.logical_z.T), self.d)
+        chi = jnp.int16(res_logical_com_diff)
+        # syndrome_chi_id = "_".join(map(str, syndrome))
+        # result = {syndrome_chi_id: chi}
+        return jnp.append(syndrome, chi)
 
     
     def compute_vertex_conditional_entropy(
