@@ -492,11 +492,11 @@ class MoebiusCodeQubit(MoebiusCode):
         and a corresponding logical chi_x by sampling many errors 
         
         Args:
-            num_samples: number of samples used to evaluate the entropy
-            errormodel: an error model to generate error samples
+            error: array of errors.
         
         Returns:
-            Dictionary with syndrome and chi probabilities
+            An array where the first num_vertex elements are the syndromes
+            and the last one is the chi_x.
         """
 
         syndrome = self.get_vertex_syndrome(error)
