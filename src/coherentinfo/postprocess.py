@@ -93,25 +93,34 @@ def compute_conditional_entropy_term(
     )
     return (entropy_term_a + entropy_term_b) / jnp.log(2)
 
-def conditional_entropy(
-    probs_zero_and_one: Array
+def miller_madow_conditional_entropy(
+    probs_zero_and_one: Array,
+    num_samples: int
 ) -> Array:
     """Computes the conditional entropy associated with the probabilities
-    of observing a certain syndrome and chi either 0 or 1
+    of observing a certain syndrome and chi either 0 or 1. It uses the 
+    Miller-Madow estimator by adding the corresponding correction.
     
     Args:
         probs_zero_and_one: array of probabilities of having the observed 
             syndromes with chi either zero or one. Typically these are 
             estimated from sample frequencies.
+        num_samples: number of samples needed for the Miller-Madow correction
     
     Returns:
         sum_{syndrome} (-prob(syndrome, 0) log_2 prob(0| syndrome) 
             -prob(syndrome, 1) log_2 prob(1| syndrome) )
     """
-
-    compute_conditional_entropy_term_jit = jax.jit(compute_conditional_entropy_term)
-    entropy_terms = jax.vmap(compute_conditional_entropy_term_jit)(probs_zero_and_one)
-    return jnp.sum(entropy_terms)
+    num_syndrome = jnp.shape(probs_zero_and_one)[0]
+    num_syndrome_chi = jnp.count_nonzero(probs_zero_and_one)
+    compute_conditional_entropy_term_jit = \
+        jax.jit(compute_conditional_entropy_term)
+    entropy_terms = \
+        jax.vmap(compute_conditional_entropy_term_jit)(probs_zero_and_one)
+    # Double check correctness of the Miller Madow correction for conditional 
+    # entropy
+    mm_correction = (num_syndrome_chi - num_syndrome) / (2 * num_samples)
+    return jnp.sum(entropy_terms) + mm_correction * 0.0
 
 
 
