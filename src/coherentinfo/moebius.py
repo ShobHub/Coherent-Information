@@ -232,9 +232,11 @@ class MoebiusCode:
                             row[self.index_v(0, x)] = 1 
                             row[self.index_v(0, x + 1)] = 1
                     else:
-                        row[self.index_h(self.width - 2, self.length - 1)] = 1
+                        row[self.index_h(self.width - 2, self.length - 1)] = \
+                            1
                         row[self.index_v(0, 0)] = -1 
-                        row[self.index_v(self.width - 1, self.length - 1)] = -1
+                        row[self.index_v(self.width - 1, self.length - 1)] = \
+                            -1
 
                 elif y > 0 and y < (self.width - 1):
                     if (x + 1) % self.length != 0:
@@ -428,23 +430,37 @@ class MoebiusCodeQubit(MoebiusCode):
         error: ArrayLike
     ) -> Array:
         """Computes the vertex syndrome (Z-type) associated with 
-        error """
+        error 
+        
+        Args:
+            error: The vertex error array
+        
+        Returns:
+            An array representing the vertex error syndrome
+        """
 
-        return jnp.mod(jnp.dot(self.h_z_qubit, error.T), self.d)
+        return jnp.mod(jnp.dot(self.h_z_qubit, error), self.d)
     
     def get_plaquette_syndrome(
         self,
         error: ArrayLike
     ) -> Array:
         """Computes the plaquette syndrome (X-type) associated with 
-        error """
+        error 
+        
+        Args:
+            error: The plaquette error array
+        
+        Returns:
+            An array representing the plaquette error syndrome
+        """
 
-        return jnp.mod(jnp.dot(self.h_x_qubit, error.T), self.d)
+        return jnp.mod(jnp.dot(self.h_x_qubit, error), self.d)
     
     def get_vertex_candidate_error(
         self,
         syndrome: ArrayLike
-    ) -> NDArray:
+    ) -> Array:
         """ Given a valid vertex syndrome it returns the candidate 
         error vector, that generates the same syndrome and commutes 
         with the logical Z. 
@@ -478,8 +494,6 @@ class MoebiusCodeQubit(MoebiusCode):
         """
         
         syndrome = jnp.mod(syndrome, self.d)
-        
-        candidate = jnp.zeros(self.num_edges, dtype=np.int16)
         plaquette_destab_j = jnp.asarray(self.plaquette_destab_qubit)
         candidate = jnp.mod(jnp.dot(syndrome, plaquette_destab_j), self.d)
         return candidate
@@ -511,7 +525,7 @@ class MoebiusCodeQubit(MoebiusCode):
         self,
         num_samples: int, 
         error_model: ErrorModel
-    ) -> ArrayLike:
+    ) -> Array:
         """Computes the vertex vector syndrome and the corresponding chi_z
         associated with many sampled error. 
         
@@ -599,7 +613,7 @@ class MoebiusCodeQubit(MoebiusCode):
         self,
         num_samples: int, 
         error_model: ErrorModel
-    ) -> ArrayLike:
+    ) -> Array:
         """Computes the plaquette vector syndrome and the corresponding chi_x
         associated with many sampled error. 
         
@@ -690,7 +704,7 @@ class MoebiusCodeOddPrime(MoebiusCode):
     and p is an odd prime.
     """
 
-    def __init__(self, length: int, width: int, d: int = 2):
+    def __init__(self, length: int, width: int, d: int = 6):
         """ Initializes the Moebius code. The strategy is to store
         all the necessary data, since they would need to be called
         repeatedly if we use this for computing the coherent 
@@ -714,7 +728,7 @@ class MoebiusCodeOddPrime(MoebiusCode):
         """Helper method to run any time a parameter changes"""
         # This calls the parent version
         super().compute_and_set_code_properties()
-        self.h_x_mod_p = self.h_x % self.p
+        self.h_x_mod_p = jnp.mod(self.h_x, self.p)
         self.plaquette_destab_type_two = \
             self.p * self.plaquette_destab_qubit 
         self.plaquette_destab_mod_p = \
@@ -765,7 +779,7 @@ class MoebiusCodeOddPrime(MoebiusCode):
 
     def build_plaquette_destabilizers_mod_p(
         self
-    ) -> Tuple[NDArray, NDArray] | None:
+    ) -> Array:
         """ Returns the destabilizers assuming qupit with p 
         odd prime on the edges. If p is not odd prime it returns 
         None
@@ -777,11 +791,11 @@ class MoebiusCodeOddPrime(MoebiusCode):
         plaquette_destab_qupit = \
             self.finite_field_right_pseudoinverse(self.h_x, 
                                                   self.p)
-        return plaquette_destab_qupit.T
+        return jnp.array(plaquette_destab_qupit.T)
 
     def build_plaquette_destabilizers_type_p(
         self
-    ) -> NDArray:
+    ) -> Array:
         """ Returns the plaquette destabilizers associated with the 
         stabilizers S_j^X[p] assuming  qudits with d = 2 p and p odd prime. 
 
@@ -794,25 +808,39 @@ class MoebiusCodeOddPrime(MoebiusCode):
     def get_vertex_syndrome(
         self,
         error: NDArray
-    ) -> NDArray:
+    ) -> Array:
         """Computes the vertex syndrome (Z-type) associated with 
-        error """
+        error 
+        
+        Args:
+            error: The vertex error array
+        
+        Returns:
+            An array representing the vertex error syndrome
+        """
 
-        return self.h_z @ error.T % self.d
+        return jnp.mod(jnp.dot(self.h_z, error), self.d) #self.h_z @ error.T % self.d
     
     def get_plaquette_syndrome(
         self,
         error: NDArray
     ) -> NDArray:
         """Computes the plaquette syndrome (X-type) associated with 
-        error """
+        error 
+        
+        Args:
+            error: The plaquette error array
+        
+        Returns:
+            An array representing the plaquette error syndrome
+        """
 
-        return self.h_x @ error.T % self.d
+        return jnp.mod(jnp.dot(self.h_x, error), self.d) #self.h_x @ error.T % self.d
     
     def get_vertex_candidate_error(
         self,
         syndrome: NDArray
-    ) -> NDArray:
+    ) -> Array:
         """ Given a valid vertex syndrome it returns the candidate 
         error vector, that generates the same syndrome and commutes 
         with the logical Z. 
@@ -824,12 +852,15 @@ class MoebiusCodeOddPrime(MoebiusCode):
             Candidate X-type error that gives the syndrome and commutes
             with the logical Z.   
         """
-        syndrome = syndrome % (self.d)
-        candidate = np.zeros(self.num_edges, dtype=np.int16)
-        for index in range(self.num_vertex_checks):
-            destab = self.vertex_destab[index, :]
-            candidate = (candidate + syndrome[index] * destab) % self.d 
-        return candidate % self.d
+        syndrome = jnp.mod(syndrome, self.d)
+        vertex_destab_j = jnp.asarray(self.vertex_destab)
+        # candidate = np.zeros(self.num_edges, dtype=np.int16)
+        # for index in range(self.num_vertex_checks):
+        #     destab = self.vertex_destab[index, :]
+        #     candidate = (candidate + syndrome[index] * destab) % self.d 
+        candidate = jnp.mod(jnp.dot(syndrome, vertex_destab_j), self.d)
+
+        return jnp.mod(candidate, self.d)
     
     def get_plaquette_candidate_error(
         self,

@@ -360,10 +360,11 @@ def test_plaquette_destabilizers_mod_p(moebius_code_example):
         plaquette_destab_mod_p = moebius_code.plaquette_destab_mod_p
         id_mat = np.identity(moebius_code.num_plaquette_checks)
         res_h_x_com = \
-            np.count_nonzero((h_x_mod_p @ plaquette_destab_mod_p.T % p) - id_mat)
+            np.count_nonzero((h_x_mod_p @ plaquette_destab_mod_p.T % p) - 
+                             id_mat)
         assert res_h_x_com == 0, \
-                f"The plaquette destabilizers and checks mod p do not have \n" \
-                f"the correct commutation relation in example #{idx}." 
+                f"The plaquette destabilizers and checks mod p do not \n" \
+                f"have the correct commutation relation in example #{idx}." 
         res_logical_com = \
             moebius_code.logical_x @ (2 * plaquette_destab_mod_p.T) % (2 * p)
         assert np.count_nonzero(res_logical_com) == 0, \
@@ -379,18 +380,21 @@ def test_vertex_candidate_error(moebius_code_example):
             syndrome = moebius_code.get_vertex_syndrome(error)
             candidate_error = \
                 moebius_code.get_vertex_candidate_error(syndrome)
-            syndrome_candidate = moebius_code.h_z @ candidate_error.T % (2 * p)
+            syndrome_candidate = moebius_code.h_z @ \
+                candidate_error.T % (2 * p)
             assert np.count_nonzero(syndrome - syndrome_candidate) == 0, \
                 f"The candidate error does not give the right syndrome in \n" \
                 f"examples #{idx}."
-            res_logical_com = candidate_error @ moebius_code.logical_z.T % (2 * p)
+            res_logical_com = candidate_error @ \
+                moebius_code.logical_z.T % (2 * p)
             assert res_logical_com == 0, \
                 f"The candidate error does not commute with the logical Z"
             error_diff = error - candidate_error
-            res_logical_com_diff = error_diff @ moebius_code.logical_z.T % (2 * p)
+            res_logical_com_diff = error_diff @ \
+                moebius_code.logical_z.T % (2 * p)
             assert res_logical_com_diff == 0 or res_logical_com_diff == p, \
-                f"The difference between the error and the candidat error \n" \
-                f"does not commute or anti-commute with the logical Z"
+                f"The difference between the error and the candidat \n" \
+                f"error does not commute or anti-commute with the logical Z"
             
 
 
@@ -406,14 +410,16 @@ def test_plaquette_candidate_error(moebius_code_example):
             assert np.count_nonzero(syndrome - syndrome_candidate) == 0, \
                 f"The candidate error does not give the right syndrome in \n" \
                 f"examples #{idx}."
-            res_logical_com = candidate_error @ moebius_code.logical_x.T % (2 * p)
+            res_logical_com = candidate_error @ \
+                moebius_code.logical_x.T % (2 * p)
             assert res_logical_com == 0, \
                 f"The candidate error does not commute with the logical X"
             error_diff = error - candidate_error
-            res_logical_com_diff = error_diff @ moebius_code.logical_x.T % (2 * p)
+            res_logical_com_diff = error_diff @ \
+                moebius_code.logical_x.T % (2 * p)
             assert res_logical_com_diff == 0 or res_logical_com_diff == p, \
-                f"The difference between the error and the candidat error \n" \
-                f"does not commute or anti-commute with the logical X"
+                f"The difference between the error and the candidat \n" \
+                f"error does not commute or anti-commute with the logical X"
             
 def test_vertex_candidate_error_qubit(moebius_code_qubit_example):
     for idx, moebius_code in enumerate(moebius_code_qubit_example):
