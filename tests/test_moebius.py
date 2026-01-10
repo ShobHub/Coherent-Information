@@ -458,8 +458,8 @@ def test_plaquette_candidate_error_qubit(moebius_code_qubit_example):
             error_diff = error - candidate_error
             res_logical_com_diff = error_diff @ moebius_code.logical_x.T % 2
             assert res_logical_com_diff == 0 or res_logical_com_diff == 1, \
-                f"The difference between the error and the candidat error \n" \
-                f"does not commute or anti-commute with the logical X"
+                f"The difference between the error and the candidats \n" \
+                f"error does not commute or anti-commute with the logical X"
 
 def test_batch_qubit(moebius_code_qubit_example):
     for idx, moebius_code in enumerate(moebius_code_qubit_example):

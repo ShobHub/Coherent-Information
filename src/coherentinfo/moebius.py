@@ -719,6 +719,7 @@ class MoebiusCodeOddPrime(MoebiusCode):
         """
         if is_prime(np.int16(d / 2)) and np.int16(d / 2) != 2:
             self.p = np.int16(d / 2)
+            self.inverse_two_mod_p = pow(2, -1, int(self.p))
         else:
             raise ValueError("d must be 2 * p with p odd prime.")
 
@@ -864,8 +865,8 @@ class MoebiusCodeOddPrime(MoebiusCode):
     
     def get_plaquette_candidate_error(
         self,
-        syndrome: NDArray
-    ) -> NDArray:
+        syndrome: ArrayLike
+    ) -> Array:
         """ Given a valid plaquette syndrome it returns the candidate 
         error vector, that generate the same syndrome and commutes 
         with the logical X.  
@@ -878,32 +879,57 @@ class MoebiusCodeOddPrime(MoebiusCode):
             with the logical X. 
         """
         
-        syndrome = syndrome % self.d
-        syndrome_mod_two = syndrome % 2
+        syndrome = jnp.mod(syndrome, self.d)
+        syndrome_mod_two = jnp.mod(syndrome, 2)
         # Note the following is not the syndrome mod p, but it is the vector
         # needed to correctly account for the syndrome mod p
-        syndrome_mod_p_aux = \
-            (syndrome - syndrome_mod_two * self.p) * \
-                pow(2, -1, int(self.p)) % self.p 
-
-        if np.sum(syndrome_mod_two[1:]) % 2 != syndrome_mod_two[0]:
-            raise ValueError(f"The syndrome is not valid as it does not"
-                             f"satisfy the plaquette constraint")
+        syndrome_mod_p_aux = jnp.mod(
+            (syndrome - syndrome_mod_two * self.p) * self.inverse_two_mod_p, self.p
+        ) 
         
-        candidate_type_two = np.zeros(self.num_edges, dtype=np.int16)
-        candidate_type_p = np.zeros(self.num_edges, dtype=np.int16)
-        for index in range(self.num_plaquette_checks):
-            if index != 0:
-                destab_type_two = self.plaquette_destab_type_two[index - 1, :]
-            else:
-                destab_type_two = np.zeros(self.num_edges, dtype=np.int16)
-            destab_type_p = self.plaquette_destab_type_p[index, :]
-            candidate_type_two = (candidate_type_two + \
-                syndrome_mod_two[index] * destab_type_two) % self.d 
-            candidate_type_p = (candidate_type_p + \
-                syndrome_mod_p_aux[index] * destab_type_p) % self.d
+        # Here I leave as a comment also an implementation that was 
+        # previously used and it is not in JAX. It is more intuitive to understand 
+        # what is going on and can be used to compare the JAX implemtation 
+        # in case there are issues
 
-        return (candidate_type_two + candidate_type_p) % self.d
+        # if np.sum(syndrome_mod_two[1:]) % 2 != syndrome_mod_two[0]:
+        #     raise ValueError(f"The syndrome is not valid as it does not"
+        #                      f"satisfy the plaquette constraint")
+        
+        # candidate_type_two = np.zeros(self.num_edges, dtype=np.int16)
+        # candidate_type_p = np.zeros(self.num_edges, dtype=np.int16)
+        # for index in range(self.num_plaquette_checks):
+        #     if index != 0:
+        #         destab_type_two = self.plaquette_destab_type_two[index - 1, :]
+        #     else:
+        #         destab_type_two = np.zeros(self.num_edges, dtype=np.int16)
+        #     destab_type_p = self.plaquette_destab_type_p[index, :]
+        #     candidate_type_two = (candidate_type_two + \
+        #         syndrome_mod_two[index] * destab_type_two) % self.d 
+        #     candidate_type_p = (candidate_type_p + \
+        #         syndrome_mod_p_aux[index] * destab_type_p) % self.d
+        # plaquette_destab_type_two_j = jnp.asarray(
+        #     jnp.delete(self.plaquette_destab_type_two, 0, axis=0)
+        # )
+
+        plaquette_destab_type_two_j = jnp.asarray(
+            self.plaquette_destab_type_two
+        )
+
+        candidate_type_two = jnp.mod(
+            jnp.dot(jnp.delete(syndrome_mod_two, 0), 
+                    plaquette_destab_type_two_j), 
+            self.d
+        )
+
+        plaquette_destab_type_p_j = jnp.asarray(self.plaquette_destab_type_p)
+
+        candidate_type_p = jnp.mod(
+            jnp.dot(syndrome_mod_p_aux, plaquette_destab_type_p_j), 
+            self.d
+        )
+
+        return jnp.mod(candidate_type_two + candidate_type_p, self.d)
 
     def compute_vertex_syndrome_chi_probabilities(
         self,
