@@ -820,7 +820,7 @@ class MoebiusCodeOddPrime(MoebiusCode):
             An array representing the vertex error syndrome
         """
 
-        return jnp.mod(jnp.dot(self.h_z, error), self.d) #self.h_z @ error.T % self.d
+        return jnp.mod(jnp.dot(self.h_z, error), self.d) 
     
     def get_plaquette_syndrome(
         self,
@@ -836,7 +836,7 @@ class MoebiusCodeOddPrime(MoebiusCode):
             An array representing the plaquette error syndrome
         """
 
-        return jnp.mod(jnp.dot(self.h_x, error), self.d) #self.h_x @ error.T % self.d
+        return jnp.mod(jnp.dot(self.h_x, error), self.d) 
     
     def get_vertex_candidate_error(
         self,
@@ -931,163 +931,271 @@ class MoebiusCodeOddPrime(MoebiusCode):
 
         return jnp.mod(candidate_type_two + candidate_type_p, self.d)
 
-    def compute_vertex_syndrome_chi_probabilities(
+    def compute_vertex_syndrome_chi_z(
         self,
-        num_samples: int,
-        error_model: ErrorModel
-    ) -> Dict:
-        """Computes the probability of observing a certain vertex syndrome
-        and a corresponding logical chi_x by sampling many errors 
+        error: ArrayLike
+    ) -> Array:
+        """Computes the vertex vector syndrome and the corresponding chi_z
+        associated with an error. 
         
         Args:
-            num_samples: number of samples used to evaluate the entropy
-            errormodel: an error model to generate error samples
+            error: array of errors on each subsystems.
         
         Returns:
-            Dictionary with syndrome and chi probabilities
+            An array where the first num_vertex elements are the syndromes
+            and the last one is the chi_z.
         """
 
-        result = {}
-
-        for _ in range(num_samples):
-            error = error_model.generate_random_error()
-            syndrome = self.get_vertex_syndrome(error)
-            candidate_error = self.get_vertex_candidate_error(syndrome)
-            error_diff = error - candidate_error 
-            res_logical_com_diff = error_diff @ self.logical_z.T % self.d
-            chi = int(res_logical_com_diff / self.p)
-            syndrome_chi_id = "_".join(map(str, syndrome))
-            if syndrome_chi_id in result.keys():
-                result[syndrome_chi_id][chi] += 1 / num_samples
-            else:
-                result[syndrome_chi_id] = [0.0, 0.0]
-                result[syndrome_chi_id][chi] = 1 / num_samples
-        return result
+        syndrome = self.get_vertex_syndrome(error)
+        candidate_error = self.get_vertex_candidate_error(syndrome)
+        error_diff = error - candidate_error 
+        res_logical_com_diff = \
+            jnp.mod(jnp.dot(error_diff, self.logical_z.T), self.d)
+        chi_z = jnp.int16(res_logical_com_diff)
+        return jnp.append(syndrome, chi_z)
     
-    def compute_vertex_conditional_entropy(
+    def compute_batched_vertex_syndrome_chi_z(
         self,
-        num_samples: int,
+        num_samples: int, 
         error_model: ErrorModel
-    ) -> float:
-        """Computes the vertex entropy H(chi_x| sigma_z) 
+    ) -> Array:
+        """Computes the vertex vector syndrome and the corresponding chi_z
+        associated with many sampled error. 
         
         Args:
-            num_samples: number of samples used to evaluate the entropy
-            errormodel: an error model to generate error samples
+            num_samples: number of sampled errors
+            error_model: error model that generates the errors. It needs
+                to be compatible with JAX
         
-        Returns
-            The vertex conditional entropy
+        Returns:
+            An array where in each row the first num_vertex elements 
+            are the syndromes and the last one is the chi_z.
+        """
+        master_vertex_key = jax.random.PRNGKey(48090)
+        vertex_keys = jax.random.split(master_vertex_key, num_samples)
+
+        batched_generate_random_error = \
+            jax.vmap(error_model.generate_random_error)
+
+        vertex_errors = batched_generate_random_error(vertex_keys)
+
+        compute_vertex_syndrome_chi_z_jit = \
+            jax.jit(self.compute_vertex_syndrome_chi_z)
+        vertex_result = \
+            jax.vmap(compute_vertex_syndrome_chi_z_jit)(vertex_errors)
+        return vertex_result
+    
+    def compute_plaquette_syndrome_chi_x(
+        self,
+        error: ArrayLike
+    ) -> Array:
+        """Computes the plaquette vector syndrome and the corresponding chi_x
+        associated with an error. 
+        
+        Args:
+            error: array of errors on each subsystems.
+
+        Returns:
+            An array where the first num_vertex elements are the syndromes
+            and the last one is the chi_x.
         """
 
-        result = self.compute_vertex_syndrome_chi_probabilities(
-            num_samples, error_model
-            )
+        syndrome = self.get_plaquette_syndrome(error)
+        candidate_error = self.get_plaquette_candidate_error(syndrome)
+        error_diff = error - candidate_error 
+        res_logical_com_diff = \
+            jnp.mod(jnp.dot(error_diff, self.logical_x.T), self.d)
+        chi_x = jnp.int16(res_logical_com_diff)
+        return jnp.append(syndrome, chi_x)
+    
+    def compute_batched_plaquette_syndrome_chi_x(
+        self,
+        num_samples: int, 
+        error_model: ErrorModel
+    ) -> Array:
+        """Computes the plaquette vector syndrome and the corresponding chi_x
+        associated with many sampled error. 
         
-        entropy = 0.0
-        for key in result.keys():
-            prob_syndrome = sum(result[key])
-            cond_prob_syndrome_chi_zero = result[key][0] / prob_syndrome
-            cond_prob_syndrome_chi_one = result[key][1] / prob_syndrome
-            entropy += -scipy.special.xlogy(result[key][0], 
-                                           cond_prob_syndrome_chi_zero) 
-            entropy += -scipy.special.xlogy(result[key][1], 
-                                           cond_prob_syndrome_chi_one) 
-        # Convert to base 2 entropy
-        entropy = entropy / np.log(2)
-        return entropy
+        Args:
+            num_samples: number of sampled errors
+            error_model: error model that generates the errors. It needs
+                to be compatible with JAX
+        
+        Returns:
+            An array where in each row the first num_plaquette - 1 
+            (independent) elements are the syndromes and the last 
+            one is the chi_x.
+        """
+        master_plaquette_key = jax.random.PRNGKey(687090)
+        plaquette_keys = jax.random.split(master_plaquette_key, num_samples)
+
+        batched_generate_random_error = jax.vmap(error_model.generate_random_error)
+
+        plaquette_errors = batched_generate_random_error(plaquette_keys)
+
+        compute_plaquette_syndrome_chi_x_jit = \
+            jax.jit(self.compute_plaquette_syndrome_chi_x)
+        plaquette_result = \
+            jax.vmap(compute_plaquette_syndrome_chi_x_jit)(plaquette_errors)
+        return plaquette_result
+
+    # def compute_vertex_syndrome_chi_probabilities(
+    #     self,
+    #     num_samples: int,
+    #     error_model: ErrorModel
+    # ) -> Dict:
+    #     """Computes the probability of observing a certain vertex syndrome
+    #     and a corresponding logical chi_x by sampling many errors 
+        
+    #     Args:
+    #         num_samples: number of samples used to evaluate the entropy
+    #         errormodel: an error model to generate error samples
+        
+    #     Returns:
+    #         Dictionary with syndrome and chi probabilities
+    #     """
+
+    #     result = {}
+
+    #     for _ in range(num_samples):
+    #         error = error_model.generate_random_error()
+    #         syndrome = self.get_vertex_syndrome(error)
+    #         candidate_error = self.get_vertex_candidate_error(syndrome)
+    #         error_diff = error - candidate_error 
+    #         res_logical_com_diff = error_diff @ self.logical_z.T % self.d
+    #         chi = int(res_logical_com_diff / self.p)
+    #         syndrome_chi_id = "_".join(map(str, syndrome))
+    #         if syndrome_chi_id in result.keys():
+    #             result[syndrome_chi_id][chi] += 1 / num_samples
+    #         else:
+    #             result[syndrome_chi_id] = [0.0, 0.0]
+    #             result[syndrome_chi_id][chi] = 1 / num_samples
+    #     return result
+    
+    # def compute_vertex_conditional_entropy(
+    #     self,
+    #     num_samples: int,
+    #     error_model: ErrorModel
+    # ) -> float:
+    #     """Computes the vertex entropy H(chi_x| sigma_z) 
+        
+    #     Args:
+    #         num_samples: number of samples used to evaluate the entropy
+    #         errormodel: an error model to generate error samples
+        
+    #     Returns
+    #         The vertex conditional entropy
+    #     """
+
+    #     result = self.compute_vertex_syndrome_chi_probabilities(
+    #         num_samples, error_model
+    #         )
+        
+    #     entropy = 0.0
+    #     for key in result.keys():
+    #         prob_syndrome = sum(result[key])
+    #         cond_prob_syndrome_chi_zero = result[key][0] / prob_syndrome
+    #         cond_prob_syndrome_chi_one = result[key][1] / prob_syndrome
+    #         entropy += -scipy.special.xlogy(result[key][0], 
+    #                                        cond_prob_syndrome_chi_zero) 
+    #         entropy += -scipy.special.xlogy(result[key][1], 
+    #                                        cond_prob_syndrome_chi_one) 
+    #     # Convert to base 2 entropy
+    #     entropy = entropy / np.log(2)
+    #     return entropy
     
                 
-    def compute_plaquette_syndrome_chi_probabilities(
-        self,
-        num_samples: int,
-        error_model: ErrorModel
-    ) -> Dict:
-        """Computes the probability of observing a certain plaquette syndrome
-        and a corresponding logical chi_z by sampling many errors 
+    # def compute_plaquette_syndrome_chi_probabilities(
+    #     self,
+    #     num_samples: int,
+    #     error_model: ErrorModel
+    # ) -> Dict:
+    #     """Computes the probability of observing a certain plaquette syndrome
+    #     and a corresponding logical chi_z by sampling many errors 
         
-        Args:
-            num_samples: number of samples used to evaluate the entropy
-            errormodel: an error model to generate error samples
+    #     Args:
+    #         num_samples: number of samples used to evaluate the entropy
+    #         errormodel: an error model to generate error samples
 
-        Returns:
-            Dictionary with syndrome and chi probabilities
-        """
+    #     Returns:
+    #         Dictionary with syndrome and chi probabilities
+    #     """
 
-        result = {}
+    #     result = {}
 
-        for _ in range(num_samples):
-            error = error_model.generate_random_error()
-            syndrome = self.get_plaquette_syndrome(error)
-            candidate_error = self.get_plaquette_candidate_error(syndrome)
-            error_diff = error - candidate_error 
-            res_logical_com_diff = error_diff @ self.logical_x.T % self.d
-            chi = int(res_logical_com_diff / self.p)
-            syndrome_chi_id = "_".join(map(str, syndrome))
-            if syndrome_chi_id in result.keys():
-                result[syndrome_chi_id][chi] += 1 / num_samples
-            else:
-                result[syndrome_chi_id] = [0.0, 0.0]
-                result[syndrome_chi_id][chi] = 1 / num_samples
-        return result
+    #     for _ in range(num_samples):
+    #         error = error_model.generate_random_error()
+    #         syndrome = self.get_plaquette_syndrome(error)
+    #         candidate_error = self.get_plaquette_candidate_error(syndrome)
+    #         error_diff = error - candidate_error 
+    #         res_logical_com_diff = error_diff @ self.logical_x.T % self.d
+    #         chi = int(res_logical_com_diff / self.p)
+    #         syndrome_chi_id = "_".join(map(str, syndrome))
+    #         if syndrome_chi_id in result.keys():
+    #             result[syndrome_chi_id][chi] += 1 / num_samples
+    #         else:
+    #             result[syndrome_chi_id] = [0.0, 0.0]
+    #             result[syndrome_chi_id][chi] = 1 / num_samples
+    #     return result
     
-    def compute_plaquette_conditional_entropy(
-        self,
-        num_samples: int,
-        error_model: ErrorModel
-    ) -> float:
-        """Computes the plaquette conditional entropy H(chi_z| sigma_X) 
+    # def compute_plaquette_conditional_entropy(
+    #     self,
+    #     num_samples: int,
+    #     error_model: ErrorModel
+    # ) -> float:
+    #     """Computes the plaquette conditional entropy H(chi_z| sigma_X) 
         
-        Args:
-            num_samples: number of samples used to evaluate the entropy
-            errormodel: an error model to generate error samples
+    #     Args:
+    #         num_samples: number of samples used to evaluate the entropy
+    #         errormodel: an error model to generate error samples
         
-        Returns
-            The plaquette conditional entropy
-        """
+    #     Returns
+    #         The plaquette conditional entropy
+    #     """
 
-        result = self.compute_plaquette_syndrome_chi_probabilities(
-            num_samples, error_model
-            )
+    #     result = self.compute_plaquette_syndrome_chi_probabilities(
+    #         num_samples, error_model
+    #         )
         
-        entropy = 0.0
-        for key in result.keys():
-            prob_syndrome = sum(result[key])
-            cond_prob_syndrome_chi_zero = result[key][0] / prob_syndrome
-            cond_prob_syndrome_chi_one = result[key][1] / prob_syndrome
-            entropy += -scipy.special.xlogy(result[key][0], 
-                                           cond_prob_syndrome_chi_zero) 
-            entropy += -scipy.special.xlogy(result[key][1], 
-                                           cond_prob_syndrome_chi_one) 
-        # Convert to base 2 entropy
-        entropy = entropy / np.log(2)
-        return entropy
+    #     entropy = 0.0
+    #     for key in result.keys():
+    #         prob_syndrome = sum(result[key])
+    #         cond_prob_syndrome_chi_zero = result[key][0] / prob_syndrome
+    #         cond_prob_syndrome_chi_one = result[key][1] / prob_syndrome
+    #         entropy += -scipy.special.xlogy(result[key][0], 
+    #                                        cond_prob_syndrome_chi_zero) 
+    #         entropy += -scipy.special.xlogy(result[key][1], 
+    #                                        cond_prob_syndrome_chi_one) 
+    #     # Convert to base 2 entropy
+    #     entropy = entropy / np.log(2)
+    #     return entropy
     
-    def compute_coherent_information(
-        self,
-        num_samples: int,
-        error_model,
-    ) -> float:
-        """Computes the coherent information 
+    # def compute_coherent_information(
+    #     self,
+    #     num_samples: int,
+    #     error_model,
+    # ) -> float:
+    #     """Computes the coherent information 
         
-        Args:
-            num_samples: number of samples used to evaluate the entropy
-            errormodel: an error model to generate error samples
+    #     Args:
+    #         num_samples: number of samples used to evaluate the entropy
+    #         errormodel: an error model to generate error samples
         
-        Returns:
-            The coherent information
-        """
+    #     Returns:
+    #         The coherent information
+    #     """
 
-        vertex_entropy = self.compute_vertex_conditional_entropy(
-            num_samples, 
-            error_model
-            )
-        plaquette_entropy = self.compute_plaquette_conditional_entropy(
-            num_samples, 
-            error_model
-            )
+    #     vertex_entropy = self.compute_vertex_conditional_entropy(
+    #         num_samples, 
+    #         error_model
+    #         )
+    #     plaquette_entropy = self.compute_plaquette_conditional_entropy(
+    #         num_samples, 
+    #         error_model
+    #         )
         
-        coherent_info = 1.0 - vertex_entropy - plaquette_entropy
-        return coherent_info
+    #     coherent_info = 1.0 - vertex_entropy - plaquette_entropy
+    #     return coherent_info
 
 
 
