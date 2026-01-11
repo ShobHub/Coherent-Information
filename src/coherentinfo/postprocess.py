@@ -72,8 +72,9 @@ def aggregate_data_jax(
     max_unique_size: int,
     pads: Array
 ) -> Tuple[Array, Array]:
-    """ It aggregates results by syndrome and computes their
-    counts. Compatible with jax.jit
+    """
+    Aggregates results by syndrome. Maps the logical error flag (p) 
+    to 1 for proper probability distribution.
 
     Args:
         result: array whose rows represent the syndromes and the 
@@ -86,57 +87,68 @@ def aggregate_data_jax(
         pads: array of pads to ensure the size is fixed.
     
         Returns:
-        Observed syndromes and probabilities of observing 
-        a logical error or not. Both results are padded 
-        with dummy values to ensure that the size of the output
-        is known at compile time for jax compatiability.
-        
+            Observed syndromes and counts of observing 
+            a logical error or not. Both results are padded 
+            with dummy values to ensure that the size of the output
+            is known at compile time for jax compatiability.
     """
-
     num_data, _ = result.shape
 
-    # 1. Isolate the key (first m-1 elements) and the flag (last element)
-    syndrome_rows = result[:, :-1] # Shape: num_data x (m-1)
-    flags = result[:, -1].astype(jnp.int16) # Shape: num_data, (0 or 1)
+    # 1. Isolate syndrome and the flag
+    syndrome_rows = result[:, :-1] 
+    
+    # FIX: Map the last column to a binary flag.
+    # If the value is p (or anything > 0), it becomes 1.
+    # If the value is 0, it stays 0.
+    # Note this may be a bit risky, as it would not catch an error
+    # of an incorrect commutation. A better way would be to explicitly
+    # pass p, but I leave it for now, as the error should be catched
+    # by other tests. 
+    flags = (result[:, -1] > 0).astype(jnp.int16) 
 
-    # 2. Find unique prefixes and assign a unique index to each original row
-    # 'indices' will map each original row to a unique index ID 
-    # (0 to num_unique-1)
+    # 2. Find unique syndromes. Note that this function gives the unique
+    # syndromes in ascending order from top to bottom as if the rows
+    # identify a number. You have to keep this in mind when designing
+    # tests. 
     unique_syndromes, indices = jnp.unique(
         syndrome_rows, 
         axis=0, 
         return_inverse=True,
-        size=max_unique_size, # <--- This Python int is now available at compile time
+        size=max_unique_size, 
         fill_value=pads
     )
     
-    # 3. Use JAX's bincount to aggregate counts based on the unique index.
-    # We use the unique index (indices) as the 'vector' to group by.
-    # The 'weights' are the flags (0 or 1).
-    # The output will have shape (num_unique,), where the value at index i is the 
-    # sum of flags for all rows belonging to the unique prefix i.
-    # Since the flags are 0 or 1, this sum gives the count of '1's.
+    # 3. Aggregate binary counts
+    # counts_of_ones will now correctly be the NUMBER of times p occurred
     counts_of_ones = jnp.bincount(
-        indices,            # The group ID for each row (0 to num_unique-1)
-        weights=flags,      # The value to sum (1 for flag=1, 0 for flag=0)
-        length=max_unique_size   # Ensures output size is num_unique (number of unique prefixes)
+        indices, 
+        weights=flags, 
+        length=max_unique_size
     )
     
-    # The total count of rows for each unique prefix is simply the bincount 
-    # of the indices themselves (weights=None means weights=1).
     total_counts = jnp.bincount(
         indices, 
         length=max_unique_size
     )
     
-    # 4. Calculate counts for 0s and combine
-    # Count of 0s = Total Count - Count of 1s
+    # 4. Calculate counts for 0s (No logical error)
+    # This is now guaranteed to be >= 0 because flags are binary
     counts_of_zeros = total_counts - counts_of_ones
 
-    sampled_freqs_zero_and_one = \
-        jnp.stack([counts_of_zeros, counts_of_ones], axis=1) / num_data
+    # 5. Normalize and Mask
+    is_real_data = total_counts > 0
+    raw_counts = jnp.stack([counts_of_zeros, counts_of_ones], axis=1)
 
-    return unique_syndromes, sampled_freqs_zero_and_one
+    # Ensure padding slots are zeroed out. 
+    # Note that we return the counts because it is easier later
+    # to run multiple batches in a for loop for example.
+    sampled_counts_zero_and_one = jnp.where(
+        is_real_data[:, None], 
+        raw_counts, 
+        0
+    )
+
+    return unique_syndromes, sampled_counts_zero_and_one
 
 def compute_conditional_entropy_term(
     probs_zero_and_one: Array
@@ -206,7 +218,7 @@ def miller_madow_conditional_entropy(
     # Double check correctness of the Miller Madow correction for conditional 
     # entropy
     mm_correction = (num_syndrome_chi - num_syndrome) / (2 * num_samples)
-    return jnp.sum(entropy_terms) + mm_correction * 0.0
+    return jnp.sum(entropy_terms) + mm_correction
 
 
 
