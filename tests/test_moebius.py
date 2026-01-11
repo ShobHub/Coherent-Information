@@ -7,6 +7,7 @@ import numpy as np
 from typing import List, Tuple
 from numpy.typing import NDArray
 from coherentinfo.linalg import finite_field_matrix_rank
+import jax
 
 @pytest.fixture
 def moebius_code_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
@@ -468,8 +469,9 @@ def test_batch_qubit(moebius_code_qubit_example):
             error_model = ErrorModelBernoulliJax(
                 moebius_code.num_edges, 2, 0.1
                 )
+            master_vertex_key = jax.random.PRNGKey(48090)
             res_vertex = moebius_code.compute_batched_vertex_syndrome_chi_z(
-                    num_samples, error_model
+                    num_samples, error_model, master_vertex_key
                     )
             exp_shape = \
                 res_vertex.shape == (num_samples, 
@@ -478,9 +480,10 @@ def test_batch_qubit(moebius_code_qubit_example):
                 f"The vertex result does not have the expected shape \n "\
                 f"for example #{idx}"
             
+            master_plaquette_key = jax.random.PRNGKey(687090)
             res_plaquette = \
                 moebius_code.compute_batched_plaquette_syndrome_chi_x(
-                    num_samples, error_model
+                    num_samples, error_model, master_plaquette_key
                     )
             exp_shape = \
                 res_plaquette.shape == (num_samples, 

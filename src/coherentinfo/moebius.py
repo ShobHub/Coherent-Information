@@ -524,7 +524,8 @@ class MoebiusCodeQubit(MoebiusCode):
     def compute_batched_vertex_syndrome_chi_z(
         self,
         num_samples: int, 
-        error_model: ErrorModel
+        error_model: ErrorModel,
+        master_key: Array
     ) -> Array:
         """Computes the vertex vector syndrome and the corresponding chi_z
         associated with many sampled error. 
@@ -538,8 +539,8 @@ class MoebiusCodeQubit(MoebiusCode):
             An array where in each row the first num_vertex elements 
             are the syndromes and the last one is the chi_z.
         """
-        master_vertex_key = jax.random.PRNGKey(48090)
-        vertex_keys = jax.random.split(master_vertex_key, num_samples)
+        # master_vertex_key = jax.random.PRNGKey(48090)
+        vertex_keys = jax.random.split(master_key, num_samples)
 
         batched_generate_random_error = \
             jax.vmap(error_model.generate_random_error)
@@ -612,7 +613,8 @@ class MoebiusCodeQubit(MoebiusCode):
     def compute_batched_plaquette_syndrome_chi_x(
         self,
         num_samples: int, 
-        error_model: ErrorModel
+        error_model: ErrorModel,
+        master_key: Array
     ) -> Array:
         """Computes the plaquette vector syndrome and the corresponding chi_x
         associated with many sampled error. 
@@ -627,8 +629,8 @@ class MoebiusCodeQubit(MoebiusCode):
             (independent) elements are the syndromes and the last 
             one is the chi_x.
         """
-        master_plaquette_key = jax.random.PRNGKey(687090)
-        plaquette_keys = jax.random.split(master_plaquette_key, num_samples)
+        # master_plaquette_key = jax.random.PRNGKey(key)
+        plaquette_keys = jax.random.split(master_key, num_samples)
 
         batched_generate_random_error = jax.vmap(error_model.generate_random_error)
 
@@ -957,7 +959,8 @@ class MoebiusCodeOddPrime(MoebiusCode):
     def compute_batched_vertex_syndrome_chi_z(
         self,
         num_samples: int, 
-        error_model: ErrorModel
+        error_model: ErrorModel,
+        master_key: Array
     ) -> Array:
         """Computes the vertex vector syndrome and the corresponding chi_z
         associated with many sampled error. 
@@ -971,8 +974,8 @@ class MoebiusCodeOddPrime(MoebiusCode):
             An array where in each row the first num_vertex elements 
             are the syndromes and the last one is the chi_z.
         """
-        master_vertex_key = jax.random.PRNGKey(48090)
-        vertex_keys = jax.random.split(master_vertex_key, num_samples)
+        #master_vertex_key = jax.random.PRNGKey(48090)
+        vertex_keys = jax.random.split(master_key, num_samples)
 
         batched_generate_random_error = \
             jax.vmap(error_model.generate_random_error)
@@ -1011,7 +1014,8 @@ class MoebiusCodeOddPrime(MoebiusCode):
     def compute_batched_plaquette_syndrome_chi_x(
         self,
         num_samples: int, 
-        error_model: ErrorModel
+        error_model: ErrorModel,
+        master_key: Array
     ) -> Array:
         """Computes the plaquette vector syndrome and the corresponding chi_x
         associated with many sampled error. 
@@ -1026,8 +1030,8 @@ class MoebiusCodeOddPrime(MoebiusCode):
             (independent) elements are the syndromes and the last 
             one is the chi_x.
         """
-        master_plaquette_key = jax.random.PRNGKey(687090)
-        plaquette_keys = jax.random.split(master_plaquette_key, num_samples)
+        #master_plaquette_key = jax.random.PRNGKey(687090)
+        plaquette_keys = jax.random.split(master_key, num_samples)
 
         batched_generate_random_error = jax.vmap(error_model.generate_random_error)
 

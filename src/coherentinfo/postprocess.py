@@ -9,7 +9,7 @@ from typing import Tuple
 
 def aggregate_data(result: Array) -> Tuple[Array, Array]:
     """ It aggregates results by syndrome and computes their
-    counts. Not compatible with jax.jit.
+    counts. Not compatible with jax.jit, despite the use of JAX. 
 
     Args:
         result: array whose rows represent the syndromes and the 
@@ -22,7 +22,7 @@ def aggregate_data(result: Array) -> Tuple[Array, Array]:
         a logical error or not.
     """
 
-    num_data, m = result.shape
+    num_data, _ = result.shape
 
     # 1. Isolate the key (first m-1 elements) and the flag (last element)
     syndrome_rows = result[:, :-1] # Shape: num_data x (m-1)
@@ -149,6 +149,61 @@ def aggregate_data_jax(
     )
 
     return unique_syndromes, sampled_counts_zero_and_one
+
+def update_aggregated_data_jax(
+    current_syndromes: Array,  # Shape: (max_unique, m-1)
+    current_counts: Array,     # Shape: (max_unique, 2)
+    new_results: Array,        # Shape: (batch_size, m)
+    max_unique_size: int,
+    pads: Array
+) -> Tuple[Array, Array]:
+    """
+    Merges a new batch of results into existing counts without 
+    storing the full history of samples.
+    """
+    # 1. Process the new batch into counts (Same logic as before)
+    new_syndromes = new_results[:, :-1]
+    new_flags = (new_results[:, -1] > 0).astype(jnp.int32)
+    
+    # Get unique syndromes in the NEW batch
+    # We use a smaller size here if batch_size < max_unique_size to save time, 
+    # but using max_unique_size is safer for JIT consistency.
+    batch_uniques, batch_indices = jnp.unique(
+        new_syndromes, axis=0, size=max_unique_size, fill_value=pads
+    )
+    
+    batch_ones = jnp.bincount(batch_indices, weights=new_flags, length=max_unique_size)
+    batch_totals = jnp.bincount(batch_indices, length=max_unique_size)
+    batch_zeros = batch_totals - batch_ones
+    batch_counts = jnp.stack([batch_zeros, batch_ones], axis=1)
+
+    # 2. Combine existing state with new batch state
+    # We now have two sets of unique syndromes: current_syndromes and batch_uniques
+    combined_syndromes = jnp.concatenate([current_syndromes, batch_uniques], axis=0)
+    combined_counts = jnp.concatenate([current_counts, batch_counts], axis=0)
+
+    # 3. Re-collapse: Find unique entries in the combined set
+    # 'final_indices' maps the 2*max_unique rows to max_unique slots
+    final_syndromes, final_indices = jnp.unique(
+        combined_syndromes, 
+        axis=0, 
+        return_inverse=True, 
+        size=max_unique_size, 
+        fill_value=pads
+    )
+
+    # 4. Sum the counts across the new indices
+    # We aggregate the counts of zeros and ones separately
+    updated_counts_zeros = jnp.bincount(
+        final_indices, weights=combined_counts[:, 0], length=max_unique_size
+    )
+    updated_counts_ones = jnp.bincount(
+        final_indices, weights=combined_counts[:, 1], length=max_unique_size
+    )
+    
+    updated_counts = jnp.stack([updated_counts_zeros, updated_counts_ones], axis=1)
+
+    return final_syndromes, updated_counts
 
 def compute_conditional_entropy_term(
     probs_zero_and_one: Array

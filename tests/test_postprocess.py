@@ -55,8 +55,7 @@ def test_aggregate_data_jax(syndrome_chi_examples) -> None:
     for idx, (results, unique_syndromes, counts) in enumerate(
         syndrome_chi_examples
     ):
-        aggregate_data_jit = jax.jit(
-        aggregate_data_jax, static_argnums=(1,))
+        aggregate_data_jit = jax.jit(aggregate_data_jax, static_argnums=(1,))
         vertex_pads = -1 * jnp.ones(results.shape[1] - 1) 
 
         num_samples, _ = results.shape 
