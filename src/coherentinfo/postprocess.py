@@ -151,59 +151,55 @@ def aggregate_data_jax(
     return unique_syndromes, sampled_counts_zero_and_one
 
 def update_aggregated_data_jax(
-    current_syndromes: Array,  # Shape: (max_unique, m-1)
-    current_counts: Array,     # Shape: (max_unique, 2)
-    new_results: Array,        # Shape: (batch_size, m)
+    current_syndromes: jax.Array,
+    current_counts: jax.Array,
+    new_results: jax.Array,
     max_unique_size: int,
-    pads: Array
-) -> Tuple[Array, Array]:
-    """
-    Merges a new batch of results into existing counts without 
-    storing the full history of samples.
-    """
-    # 1. Process the new batch into counts (Same logic as before)
+    pads: jax.Array
+) -> Tuple[jax.Array, jax.Array]:
+    
+    # 1. Process New Batch
     new_syndromes = new_results[:, :-1]
     new_flags = (new_results[:, -1] > 0).astype(jnp.int32)
     
-    # Get unique syndromes in the NEW batch
-    # We use a smaller size here if batch_size < max_unique_size to save time, 
-    # but using max_unique_size is safer for JIT consistency.
-    batch_uniques, batch_indices = jnp.unique(
-        new_syndromes, axis=0, size=max_unique_size, fill_value=pads
-    )
+    # 2. Unique in Batch (Generic unpacking to avoid ValueError)
+    res_batch = jnp.unique(new_syndromes, axis=0, size=max_unique_size, fill_value=pads, return_inverse=True)
+    batch_uniques, batch_indices = res_batch[0], res_batch[1]
     
     batch_ones = jnp.bincount(batch_indices, weights=new_flags, length=max_unique_size)
     batch_totals = jnp.bincount(batch_indices, length=max_unique_size)
-    batch_zeros = batch_totals - batch_ones
-    batch_counts = jnp.stack([batch_zeros, batch_ones], axis=1)
+    batch_counts = jnp.stack([batch_totals - batch_ones, batch_ones], axis=1)
 
-    # 2. Combine existing state with new batch state
-    # We now have two sets of unique syndromes: current_syndromes and batch_uniques
+    # 3. Combine
     combined_syndromes = jnp.concatenate([current_syndromes, batch_uniques], axis=0)
     combined_counts = jnp.concatenate([current_counts, batch_counts], axis=0)
-
-    # 3. Re-collapse: Find unique entries in the combined set
-    # 'final_indices' maps the 2*max_unique rows to max_unique slots
-    final_syndromes, final_indices = jnp.unique(
-        combined_syndromes, 
-        axis=0, 
-        return_inverse=True, 
-        size=max_unique_size, 
-        fill_value=pads
-    )
-
-    # 4. Sum the counts across the new indices
-    # We aggregate the counts of zeros and ones separately
-    updated_counts_zeros = jnp.bincount(
-        final_indices, weights=combined_counts[:, 0], length=max_unique_size
-    )
-    updated_counts_ones = jnp.bincount(
-        final_indices, weights=combined_counts[:, 1], length=max_unique_size
-    )
     
-    updated_counts = jnp.stack([updated_counts_zeros, updated_counts_ones], axis=1)
+    # 4. Re-Collapse
+    res_final = jnp.unique(combined_syndromes, axis=0, size=max_unique_size, fill_value=pads, return_inverse=True)
+    final_syndromes, final_indices = res_final[0], res_final[1]
 
-    return final_syndromes, updated_counts
+    updated_zeros = jnp.bincount(final_indices, weights=combined_counts[:, 0], length=max_unique_size)
+    updated_ones = jnp.bincount(final_indices, weights=combined_counts[:, 1], length=max_unique_size)
+    raw_counts = jnp.stack([updated_zeros, updated_ones], axis=1)
+
+    # 5. RE-SORTING LOGIC: Move pads to the end
+    # We create a sorting key: 1 for real syndromes, 0 for pads.
+    # By sorting in descending order, real data comes first.
+    is_not_pad = jnp.any(final_syndromes != pads, axis=-1)
+    
+    # argsort with a stable sort to keep syndromes grouped
+    # We use -is_not_pad because argsort is ascending; this puts True (1) at the start
+    sort_indices = jnp.argsort(~is_not_pad) 
+    
+    sorted_syndromes = final_syndromes[sort_indices]
+    sorted_counts = raw_counts[sort_indices]
+
+    # Final wipe: ensure the rows that are pads have 0 counts
+    # (Just in case index 0 collected 'count' logic before sorting)
+    final_valid_mask = jnp.any(sorted_syndromes != pads, axis=-1)
+    clean_counts = jnp.where(final_valid_mask[:, None], sorted_counts, 0)
+
+    return sorted_syndromes, clean_counts
 
 def compute_conditional_entropy_term(
     probs_zero_and_one: Array
