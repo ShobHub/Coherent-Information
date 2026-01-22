@@ -92,7 +92,7 @@ def h2_binary(p1: float) -> float:
     return -(p1 * np.log2(p1) + (1.0 - p1) * np.log2(1.0 - p1))
 
 # ------------------------------------------------------------
-# CSR adjacency (fast + Numba-friendly)
+# CSR adjacency (fast)
 # ------------------------------------------------------------
 
 def build_adjacency_csr(H_Z: np.ndarray):
@@ -227,7 +227,6 @@ def estimate_Hx_given_syndrome_fast(
     burn_in_worms: int,
     N_log: int,
     worms_per_sample: int,
-    use_numba: bool = False,
 ) -> float:
     m_cur = m_start.copy()
 
@@ -261,7 +260,6 @@ def estimate_Icoh_vs_alpha_d2_fast(
     N_log: int,
     burn_in_worms: int,
     worms_per_sample: int,
-    use_numba: bool = False,
     save_every: int = 0,  # 0 disables intermediate prints/saves
 ):
     rng = np.random.default_rng(seed)
@@ -303,7 +301,6 @@ def estimate_Icoh_vs_alpha_d2_fast(
                 burn_in_worms=burn_in_worms,
                 N_log=N_log,
                 worms_per_sample=worms_per_sample,
-                use_numba=use_numba,
             )
 
         H_mean = H_accum / float(N_syn)
@@ -341,12 +338,11 @@ if __name__ == "__main__":
             N_log=pars["N_log"],
             burn_in_worms=pars["burn_in"],
             worms_per_sample=pars["worms_per_sample"],
-            use_numba=use_numba,
             save_every=0
         )
 
         dt = time.time() - st
-        print(f"(L,w)=({L},{w}) time={dt:.2f}s  numba={use_numba and NUMBA_AVAILABLE}")
+        print(f"(L,w)=({L},{w}) time={dt:.2f}s")
 
         # Save
         pickle.dump(
