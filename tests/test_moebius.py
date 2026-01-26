@@ -1,7 +1,8 @@
 # Tests for the generation of the Moebius code
 
 import pytest
-from coherentinfo.moebius import MoebiusCodeOddPrime, MoebiusCodeQubit
+from coherentinfo.moebius_qubit import MoebiusCodeQubit
+from coherentinfo.moebius_odd_prime import MoebiusCodeOddPrime
 from coherentinfo.errormodel import ErrorModelBernoulli
 import numpy as np
 from typing import List, Tuple
