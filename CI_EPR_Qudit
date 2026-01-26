@@ -1,0 +1,423 @@
+'''Mathematica Code'''
+
+ClearAll[XOperator, ZOperator, VonNeumannEntropyBits];
+
+
+(* Define qudit X, Z operators and von Neumann entropy in bits ________________ *)
+(* Generalized Pauli X on a qudit of dimension d *)
+XOperator[d_Integer] := SparseArray[
+   Table[
+     {Mod[i, d] + 1, i} -> 1,
+     {i, 1, d}
+   ],
+   {d, d}
+];
+
+(* Generalized Pauli Z on a qudit of dimension d *)
+ZOperator[d_Integer] := DiagonalMatrix[
+   Table[Exp[2 Pi I (k - 1)/d], {k, 1, d}]
+];
+
+(* Von Neumann entropy in bits, with some numerical hygiene *)
+VonNeumannEntropyBits[rho_?MatrixQ] := Module[{rh, evals},
+  (* enforce Hermiticity, chop tiny imaginary parts *)
+  rh = Chop[(rho + ConjugateTranspose[rho])/2];
+  evals = Chop[Eigenvalues[rh]];
+  evals = Select[evals, # > 10^-12 &]; (* discard 0 or negative junk *)
+  -Total[evals Log2[evals]]
+];
+ClearAll[PoissonDistributionZ];
+
+
+(* Symmetric Poisson distribution on Z_d, folded modulo d and normalized ________________ *)
+(* Poisson-like distribution on Z_d with parameter \[Lambda]
+   cutoff controls how many integers n we include in the sum *)
+PoissonDistributionZ[d_Integer, \[Lambda]_?NumericQ, cutoff_Integer : 15] :=
+ Module[{nRange, w, probs},
+  nRange = Range[-cutoff, cutoff];
+
+  (* careful definition to avoid 0.^0 when \[Lambda] = 0 and n = 0 *)
+  w[n_] := Which[
+    PossibleZeroQ[\[Lambda]] && n == 0, 1.,            (* exactly no noise *)
+    PossibleZeroQ[\[Lambda]] && n != 0, 0.,
+    True, Exp[-2 \[Lambda]] (\[Lambda]^Abs[n]/Factorial[Abs[n]])
+  ];
+
+  probs = ConstantArray[0., d];
+  Do[
+    probs[[Mod[n, d] + 1]] += w[n],
+    {n, nRange}
+  ];
+  probs/Total[probs]
+];
+ClearAll[GaussianDistributionZ];
+
+
+(* Symmetric discrete Gaussian on Z_d with cutoff and normalization ________________ *)
+(* Gaussian-like distribution on Z_d with std deviation \[Sigma]
+   cutoffFactor * \[Sigma] sets how far in n we sum *)
+GaussianDistributionZ[d_Integer, \[Sigma]_?NumericQ, cutoffFactor_: 4] :=
+ Module[{cutoff, nRange, w, probs},
+  cutoff = Max[1, Ceiling[cutoffFactor \[Sigma]]];
+  nRange = Range[-cutoff, cutoff];
+  w[n_] := Exp[-n^2/(2 \[Sigma]^2)];
+  probs = ConstantArray[0., d];
+  Do[
+    probs[[Mod[n, d] + 1]] += w[n],
+    {n, nRange}
+  ];
+  probs/Total[probs]
+];
+ClearAll[CoherentInformationEPR];
+
+
+(* Compute coherent information for the noise channels ________________ *)
+CoherentInformationEPR[d_Integer, px_List, pz_List] :=
+ Module[{X, Z, xPowers, zPowers, kraus, rhoQ0, rhoQ, psi, rhoRQ0, rhoRQ,
+   SQ, SRQ},
+
+  (* sanity checks *)
+  If[Length[px] =!= d || Length[pz] =!= d,
+   Return[$Failed, Module]
+  ];
+
+  X = XOperator[d];
+  Z = ZOperator[d];
+
+  xPowers = Table[MatrixPower[X, n], {n, 0, d - 1}];
+  zPowers = Table[MatrixPower[Z, m], {m, 0, d - 1}];
+
+  (* Kraus operators: K_{n,m} = sqrt(Px(n) Pz(m)) X^n Z^m *)
+  kraus = Flatten[
+    Table[
+      Sqrt[px[[n + 1]] pz[[m + 1]]] xPowers[[n + 1]] . zPowers[[m + 1]],
+      {n, 0, d - 1}, {m, 0, d - 1}
+    ],
+    1
+  ];
+
+  (* single-qudit maximally mixed state *)
+  rhoQ0 = IdentityMatrix[d]/d;
+
+  rhoQ = Total[(# . rhoQ0 . ConjugateTranspose[#]) & /@ kraus];
+
+  (* maximally entangled state |\[CapitalPsi]_d> as a vector in d^2-dim space *)
+  psi = 1/Sqrt[d] Flatten[IdentityMatrix[d]];
+  rhoRQ0 = Outer[Times, psi, Conjugate[psi]];
+
+  rhoRQ = Total[
+    With[{K = KroneckerProduct[IdentityMatrix[d], #]},
+       K . rhoRQ0 . ConjugateTranspose[K]
+     ] & /@ kraus
+  ];
+
+  SQ = VonNeumannEntropyBits[rhoQ];
+  SRQ = VonNeumannEntropyBits[rhoRQ];
+
+  (SQ - SRQ)/Log2[d]
+];
+
+
+(* dimensions to study *)
+dList = {2, 6, 10};
+
+
+(* noise strength grid for Poisson *)
+lambdaList = Range[0., 1.5, 0.1];
+(* Evaluate Ic vs (1-p) for Poisson X/Z noise across different d ________________ *)
+poissonData =
+  Table[
+    Module[{px, pz, Ic, q},
+      Table[
+        px = PoissonDistributionZ[d, \[Lambda], 15];
+        pz = px; (* same distribution for X and Z *)
+        q = px[[1]] pz[[1]]; (* prob of no X and no Z error *)
+        Ic = CoherentInformationEPR[d, px, pz];
+        {q, Ic}
+        ,
+        {\[Lambda], lambdaList}
+      ] // SortBy[#, First] & (* sort by q = 1-p *)
+    ],
+    {d, dList}
+  ];
+
+
+(* Plot coherent information curves for Poisson noise ________________ *)
+poissonPlot = ListLinePlot[
+  poissonData,
+  PlotLegends -> (("d=" <> ToString[#]) & /@ dList),
+  AxesLabel -> {"1 - p (P[no error])", "I_c (bits)"},
+  PlotLabel -> "Coherent Information vs 1-p (Poisson X/Z noise)",
+  PlotRange -> All,
+  ImageSize -> Large
+];
+
+poissonPlot
+
+
+(* noise strength grid for Gaussian *)
+sigmaList = Range[0.1, 3., 0.1];
+(* Evaluate Ic vs (1-p) for Gaussian X/Z noise across different d ________________ *)
+gaussianData =
+  Table[
+    Module[{px, pz, Ic, q},
+      Table[
+        px = GaussianDistributionZ[d, \[Sigma], 4];
+        pz = px;
+        q = px[[1]] pz[[1]]; (* prob of no error in X and Z *)
+        Ic = CoherentInformationEPR[d, px, pz];
+        {q, Ic}
+        ,
+        {\[Sigma], sigmaList}
+      ] // SortBy[#, First] &
+    ],
+    {d, dList}
+  ];
+  
+  
+(* Plot coherent information curves for Gaussian noise ________________ *)
+gaussianPlot = ListLinePlot[
+  gaussianData,
+  PlotLegends -> (("d=" <> ToString[#]) & /@ dList),
+  AxesLabel -> {"1 - p (P[no error])", "I_c (bits)"},
+  PlotLabel -> "Coherent Information vs 1-p (Gaussian X/Z noise)",
+  PlotRange -> All,
+  ImageSize -> Large
+];
+
+gaussianPlot
+
+
+
+
+
+
+(* ===========Model 1 (Exact) ============ *)
+
+(* ======================== *)
+(* GENERALIZED PAULI OPS   *)
+(* ======================== *)
+ClearAll[Xop, Zop];
+
+Xop[d_Integer] := SparseArray[
+  Table[{Mod[i, d] + 1, i} -> 1, {i, 1, d}],
+  {d, d}
+];
+
+Zop[d_Integer] := DiagonalMatrix[
+  Exp[2 Pi I (# - 1)/d] & /@ Range[d]
+];
+
+
+(* ======================== *)
+(* HEAT-KERNEL NOISE MODEL  *)
+(* ======================== *)
+ClearAll[HeatKernelP];
+
+HeatKernelP[d_Integer, \[Gamma]t_?NumericQ, n_Integer] :=
+  Module[{val},
+    val = (1/d) Sum[
+       Exp[-4 \[Gamma]t Sin[Pi k/d]^2] Exp[2 Pi I k n/d],
+       {k, 0, d - 1}
+    ];
+    N[Re[val]]
+  ];
+
+
+(* ======================== *)
+(* Von Neumann entropy in bits (robust) *)
+(* ======================== *)
+ClearAll[EntropyBits];
+
+EntropyBits[rho_?MatrixQ] :=
+ Module[{rh, evals},
+  rh = Chop[(rho + ConjugateTranspose[rho])/2]; (* enforce Hermitian *)
+  evals = Chop[Eigenvalues[rh]];
+  evals = Select[evals, # > 10^-12 &];           (* drop numerical zeros *)
+  -Total[evals Log2[evals]]
+];
+
+
+(* ======================== *)
+(* COHERENT INFORMATION     *)
+(* ======================== *)
+ClearAll[CoherentInformationEPR];
+
+CoherentInformationEPR[d_Integer, \[Gamma]t_?NumericQ] :=
+ Module[{X, Z, px, pz, Klist, rhoQ0, rhoQ, psi, rhoRQ0, rhoRQ,
+   SQ, SRQ},
+
+  X = Xop[d];
+  Z = Zop[d];
+
+  (* raw distributions *)
+  px = Table[HeatKernelP[d, \[Gamma]t, n], {n, 0, d - 1}];
+  pz = px;
+
+  (* normalize to avoid small numerical drift *)
+  px = px/Total[px];
+  pz = pz/Total[pz];
+
+  (* Kraus operators: K_{n,m} = sqrt(Px(n) Pz(m)) X^n Z^m *)
+  Klist =
+    Flatten[
+      Table[
+        Sqrt[px[[n + 1]] pz[[m + 1]]] MatrixPower[X, n] . MatrixPower[Z, m],
+        {n, 0, d - 1}, {m, 0, d - 1}
+      ],
+      1
+    ];
+
+  (* maximally mixed single-qudit state *)
+  rhoQ0 = IdentityMatrix[d]/d;
+
+  rhoQ = Total[(# . rhoQ0 . ConjugateTranspose[#]) & /@ Klist];
+
+  (* maximally entangled state |\[CapitalPsi]_d> as a vector in d^2 space *)
+  psi = 1/Sqrt[d] Flatten[IdentityMatrix[d]];
+  rhoRQ0 = Outer[Times, psi, Conjugate[psi]];
+
+  rhoRQ = Total[
+    With[{K = KroneckerProduct[IdentityMatrix[d], #]},
+       K . rhoRQ0 . ConjugateTranspose[K]
+     ] & /@ Klist
+  ];
+
+  SQ = EntropyBits[rhoQ];
+  SRQ = EntropyBits[rhoRQ];
+
+  (SQ - SRQ)/Log2[d]
+];
+
+CoherentInformationEPR[2, 0.0]   (* should be \[TildeTilde] 1 bit, noiseless *)
+
+(* ======================== *)
+(* GENERATE DATA / PLOT     *)
+(* ======================== *)
+(* dimensions to study *)
+dList = {2, 6, 10};
+(* noise strength grid in \[Gamma] t *)
+\[Gamma]tList = Range[0., 1.0, 0.005];
+
+heatData =
+  Table[
+    Module[{raw},
+      raw =
+        Table[
+          With[
+            {
+              p0 = HeatKernelP[d, \[Gamma]t, 0],
+              Ic = CoherentInformationEPR[d, \[Gamma]t]
+            },
+            {p0^2, Ic}
+          ],
+          {\[Gamma]t, \[Gamma]tList}
+        ];
+      (* keep only fully numeric points and sort by x = 1-p *)
+      Select[raw, (NumericQ[#[[1]]] && NumericQ[#[[2]]]) &] //
+        SortBy[#, First] &
+    ],
+    {d, dList}
+  ];
+
+Model1Plot = ListLinePlot[
+  heatData,
+  PlotLegends -> (("d=" <> ToString[#]) & /@ dList),
+  AxesLabel -> {"1 - p  (no-error)", "I_c (bits)"},
+  PlotLabel -> "Coherent Information vs 1-p(no error) - Model 1", (*(heat-kernel X/Z noise)",*)
+  PlotRange -> All,
+  ImageSize -> Large,
+  PlotStyle -> Thick
+]
+
+(*
+(* ========= PLOT ========= *)
+
+colors = ColorData[97] /@ Range[Length[dList]];
+
+combinedCurves =
+  Join[
+    Table[
+      Style[heatData[[i]], {colors[[i]]}, Thick],
+      {i, Length[dList]}
+    ],
+    Table[
+      Style[poissonData[[i]], {colors[[i]], Dashed}, Thick],
+      {i, Length[dList]}
+    ],
+    Table[
+      Style[gaussianData[[i]], {colors[[i]], DotDashed}, Thick],
+      {i, Length[dList]}
+    ]
+  ];
+
+labels =
+  Join[
+    (("Heat, d=" <> ToString[#]) & /@ dList),
+    (("Poisson, d=" <> ToString[#]) & /@ dList),
+    (("Gaussian, d=" <> ToString[#]) & /@ dList)
+  ];
+
+combinedPlot =
+  ListLinePlot[
+    combinedCurves,
+    PlotLegends -> labels,
+    AxesLabel -> {"1 - p (P[no error])", "I_c / log2[d]"},
+    PlotLabel -> "Coherent Information: Heat vs Poisson vs Gaussian",
+    PlotRange -> All,
+    ImageSize -> Large
+  ];
+
+combinedPlot
+*)
+
+Export["CI_EPR_Qudit_Model1.pdf", Model1Plot]
+
+
+(* ============================= *)
+(* NORMALIZATION CHECKS          *)
+(* ============================= *)
+
+(* 1D heat-kernel distribution *)
+ClearAll[HeatKernelP];
+HeatKernelP[d_Integer, \[Gamma]t_?NumericQ, n_Integer] :=
+ Module[{val},
+  val = (1/d) Sum[
+     Exp[-4 \[Gamma]t Sin[Pi k/d]^2] Exp[2 Pi I k n/d],
+     {k, 0, d - 1}
+  ];
+  val = Re[val];
+  If[val < 0, val = 0.0];
+  val
+ ];
+
+
+(* --- 1. Check 1D normalization ----------------------- *)
+CheckHeatKernelNorm1D[d_, \[Gamma]t_] :=
+ Total[Table[HeatKernelP[d, \[Gamma]t, n], {n, 0, d - 1}]]
+
+
+(* --- 2. Check 2D normalization (X+Z channel) -------- *)
+(* R(n,m) = P(n) P(m) *)
+CheckHeatKernelNorm2D[d_, \[Gamma]t_] :=
+ Module[{px},
+   px = Table[HeatKernelP[d, \[Gamma]t, n], {n, 0, d - 1}];
+   Total[Flatten[Outer[Times, px, px]]]
+ ];
+
+
+(* ============================= *)
+(* PRINT SAMPLE NORMALIZATIONS  *)
+(* ============================= *)
+
+Table[
+  {
+    "d" -> d,
+    "\[Gamma]t" -> \[Gamma]t,
+    "1D Norm (sum_n P(n))" -> N[CheckHeatKernelNorm1D[d, \[Gamma]t]],
+    "2D Norm (sum_{n,m} P(n)P(m))" -> N[CheckHeatKernelNorm2D[d, \[Gamma]t]]
+  },
+  {d, {2, 6, 10}},
+  {\[Gamma]t, {0, 0.1, 0.5, 1.0}}
+] // Flatten
+
