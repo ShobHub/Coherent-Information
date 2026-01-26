@@ -2,7 +2,7 @@
 
 import pytest
 from coherentinfo.moebius import MoebiusCodeOddPrime, MoebiusCodeQubit
-from coherentinfo.errormodel import ErrorModelBernoulliJax
+from coherentinfo.errormodel import ErrorModelBernoulli
 import numpy as np
 from typing import List, Tuple
 from numpy.typing import NDArray
@@ -466,7 +466,7 @@ def test_batch_qubit(moebius_code_qubit_example):
     for idx, moebius_code in enumerate(moebius_code_qubit_example):
         num_samples = 100
         for _ in range(10):
-            error_model = ErrorModelBernoulliJax(
+            error_model = ErrorModelBernoulli(
                 moebius_code.num_edges, 2, 0.1
                 )
             master_vertex_key = jax.random.PRNGKey(48090)
