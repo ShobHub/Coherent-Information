@@ -1,12 +1,24 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import time
 import pickle
+import numpy as np
+import matplotlib.pyplot as plt
+
+'''
+Noise Model - Using Eq(18) in notes
+To Think/Do:
+1. Boundary-termination worms are not implemented here (requires explicit boundary nodes in the check graph); 
+the current code rejects boundary edges by default. - do this - it will make code faster.
+
+2. m_curr - m_start.....rather than fixing a m_0 and doing m_curr - m_0.
+
+3. max_steps??
+
+4. near threshold you must increase mixing (burn-in/thinning) and sample counts - Ideal Parameters ?
+'''
 
 # ------------------------------------------------------------
 # Möbius code construction (faster H_Z build)
 # ------------------------------------------------------------
-
 def build_moebius_code_vertex(L: int, w: int, d: int = 2):
     """
     Returns:
@@ -72,7 +84,6 @@ def build_moebius_code_vertex(L: int, w: int, d: int = 2):
 # Noise model: wrapped-FT Eq(18) specialized to d=2
 #   P0 = 1/2(1+e^{-alpha}), P1 = 1/2(1-e^{-alpha})
 # ------------------------------------------------------------
-
 def noise_probs_wrapped_d2(alpha: float) -> tuple[float, float]:
     ea = np.exp(-alpha)
     P0 = 0.5 * (1.0 + ea)
@@ -94,7 +105,6 @@ def h2_binary(p1: float) -> float:
 # ------------------------------------------------------------
 # CSR adjacency (fast)
 # ------------------------------------------------------------
-
 def build_adjacency_csr(H_Z: np.ndarray):
     """
     Build:
@@ -131,7 +141,6 @@ def build_adjacency_csr(H_Z: np.ndarray):
 # ------------------------------------------------------------
 # Fast Bernoulli sampling for m_start using P1(alpha)
 # ------------------------------------------------------------
-
 def sample_x_error_vector_u8(n: int, P1: float, rng: np.random.Generator) -> np.ndarray:
     """Return uint8 vector in {0,1}^n with P(1)=P1."""
     return (rng.random(n) < P1).astype(np.uint8)
@@ -139,7 +148,6 @@ def sample_x_error_vector_u8(n: int, P1: float, rng: np.random.Generator) -> np.
 # ------------------------------------------------------------
 # Logical bit extraction (d=2): x_X = <l_Z, delta_m> mod 2
 # ------------------------------------------------------------
-
 def logical_bit_xX_from_delta_u8(delta_m: np.ndarray, l_Z: np.ndarray) -> int:
     # l_Z is int8; delta_m is uint8
     return int((np.dot((l_Z & 1).astype(np.int16), (delta_m & 1).astype(np.int16)) & 1))
@@ -147,7 +155,6 @@ def logical_bit_xX_from_delta_u8(delta_m: np.ndarray, l_Z: np.ndarray) -> int:
 # ------------------------------------------------------------
 # Worm kernel (pure Python, optimized)
 # ------------------------------------------------------------
-
 def worm_closed_loop_update_fast(
     m: np.ndarray,                 # uint8 vector
     check_ptr: np.ndarray,         # int32
@@ -214,7 +221,6 @@ def worm_closed_loop_update_fast(
 # ------------------------------------------------------------
 # Main estimators (Hx and Icoh)
 # ------------------------------------------------------------
-
 def estimate_Hx_given_syndrome_fast(
     l_Z: np.ndarray,               # int8
     m_start: np.ndarray,           # uint8
@@ -228,8 +234,8 @@ def estimate_Hx_given_syndrome_fast(
     N_log: int,
     worms_per_sample: int,
 ) -> float:
-    m_cur = m_start.copy()
 
+    m_cur = m_start.copy()
     # burn-in
     for _ in range(burn_in_worms):
         worm_closed_loop_update_fast(
@@ -250,7 +256,6 @@ def estimate_Hx_given_syndrome_fast(
     p1 = n1 / float(N_log)
     return h2_binary(p1)
 
-
 def estimate_Icoh_vs_alpha_d2_fast(
     L: int,
     w: int,
@@ -260,8 +265,8 @@ def estimate_Icoh_vs_alpha_d2_fast(
     N_log: int,
     burn_in_worms: int,
     worms_per_sample: int,
-    save_every: int = 0,  # 0 disables intermediate prints/saves
 ):
+
     rng = np.random.default_rng(seed)
 
     H_Z, l_Z, n = build_moebius_code_vertex(L=L, w=w, d=2)
@@ -307,9 +312,6 @@ def estimate_Icoh_vs_alpha_d2_fast(
         Hx[ia] = H_mean
         Icoh[ia] = 1.0 - 2.0 * H_mean
 
-        if save_every and ((ia + 1) % save_every == 0):
-            print(f"alpha[{ia+1}/{len(alphas)}]={alpha:.4f}  p={ps[ia]:.4f}  Icoh={Icoh[ia]:.4f}")
-
     return ps, Icoh, Hx
 
 # ------------------------------------------------------------
@@ -337,18 +339,14 @@ if __name__ == "__main__":
             N_syn=pars["N_syn"],
             N_log=pars["N_log"],
             burn_in_worms=pars["burn_in"],
-            worms_per_sample=pars["worms_per_sample"],
-            save_every=0
+            worms_per_sample=pars["worms_per_sample"]
         )
 
         dt = time.time() - st
         print(f"(L,w)=({L},{w}) time={dt:.2f}s")
 
         # Save
-        pickle.dump(
-            [ps_out, Icoh_out, Hx_out],
-            open(f"CI_Worm_d2_Eq18_L={L}_w={w}.pkl", "wb")
-        )
+        # pickle.dump([ps_out, Icoh_out, Hx_out],open(f"../d2_data/CI_Worm_d2_Eq18_L={L}_w={w}.pkl", "wb"))
 
         label = f"(L,w)=({L},{w}), Nsyn={pars['N_syn']}, Nlog={pars['N_log']}"
         plt.plot(ps_out, Icoh_out, label=label)
@@ -360,19 +358,3 @@ if __name__ == "__main__":
     plt.legend(fontsize=9)
     plt.tight_layout()
     plt.show()
-    
-'''
-for (L, w), pars in mc_params.items():
-    ps_out, Icoh_out, _ = pickle.load(open('CI_Worm_d2_Eq18_L=%i_w=%i.pkl' % (L, w), 'rb'))
-    label = f"(L,w)=({L},{w}), Nsyn={pars['N_syn']}, Nlog={pars['N_log']}"
-    plt.plot(ps_out, Icoh_out, label=label)
-    plt.scatter(ps_out, Icoh_out, s=12)
-
-plt.axhline(0.0, color="k", linewidth=1)
-plt.axhline(0., color="k", linewidth=1)
-plt.xlabel(r"$p = P(1) = \frac{1-e^{-\alpha}}{2}$")
-plt.ylabel(r"$I_{\rm coh} = 1 - 2H(x_X|\sigma_Z)$")
-plt.legend(fontsize=9)
-plt.tight_layout()
-plt.show()
-'''
