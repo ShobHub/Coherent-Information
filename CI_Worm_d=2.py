@@ -123,6 +123,9 @@ def build_adjacency_csr(H_Z: np.ndarray):
             edge_checks[e, j] = i
             fill[e] += 1
 
+    # nbound = np.sum(edge_checks[:, 1] < 0)
+    # print("boundary edges:", nbound, "out of", edge_checks.shape[0])
+
     return check_ptr, check_edges, edge_checks
 
 # ------------------------------------------------------------
@@ -164,79 +167,79 @@ def syndrome_Z_u8(H_Z: np.ndarray, m_u8: np.ndarray) -> np.ndarray:
 # Fixed reference error, m_0 ??
 # ------------------------------------------------------------
 
-
 # ------------------------------------------------------------
-# Worm kernel (pure Python, optimized)
+# Numba Single Worm Loop Update - Fast
 # ------------------------------------------------------------
-def worm_closed_loop_update_fast(
-    m: np.ndarray,                 # uint8 vector
-    check_ptr: np.ndarray,         # int32
-    check_edges: np.ndarray,       # int32
-    edge_checks: np.ndarray,       # int32 (n,2)
-    rng: np.random.Generator,
-    r01: float,                    # P1/P0
-    r10: float,                    # P0/P1
-    max_steps: int = 200000,
-) -> bool:
+@nb.njit(cache=True)
+def worm_closed_loop_update_numba(
+    m_u8,            # uint8 (n,)
+    check_ptr,       # int32 (r_z+1,)
+    check_edges,     # int32 (nnz,)
+    edge_checks,     # int32 (n,2)
+    r01,             # float64  P1/P0
+    r10,             # float64  P0/P1
+    max_steps,
+):
     """
-    One worm update (d=2): walk on check graph, flip one edge each accepted step,
-    stop when head returns to tail. Preserves syndrome sector.
+    One worm update (d=2).
+    Returns 1 if closed successfully, 0 if aborted (and rolled back).
     """
-    # local bindings for speed
-    integers = rng.integers
-    rand = rng.random
-    m_arr = m
-    cptr = check_ptr
-    cedges = check_edges
-    echecks = edge_checks
-
-    r_z = cptr.shape[0] - 1
-    tail = int(integers(r_z))
+    r_z = check_ptr.shape[0] - 1
+    tail = np.random.randint(r_z)
     head = tail
 
-    flipped = []  # store edges we actually flipped (accepted moves)
+    # stack of flipped edges for rollback if we abort
+    flipped = np.empty(max_steps, dtype=np.int32)
+    nflip = 0
 
-    steps = 0
-    while True:
-        steps += 1
-        if steps > max_steps:
-            # ABORT: undo partial worm so syndrome is unchanged
-            for e in flipped:
-                m_arr[e] ^= 1
-            return False
-
-        start = cptr[head]
-        end = cptr[head + 1]
+    for _ in range(max_steps):
+        start = check_ptr[head]
+        end = check_ptr[head + 1]
         deg = end - start
-        e = int(cedges[start + int(integers(deg))])
+        # pick random incident edge
+        e = check_edges[start + np.random.randint(deg)]
 
-        c0 = echecks[e, 0]
-        c1 = echecks[e, 1]
+        c0 = edge_checks[e, 0]
+        c1 = edge_checks[e, 1]
+        # boundary edge: reject move
         if c0 < 0 or c1 < 0:
-            # boundary edge (not handled here) -> reject
             continue
 
-        next_head = int(c0 if c1 == head else c1)
+        # move head across e
+        next_head = c0 if c1 == head else c1
 
-        bit = int(m_arr[e] & 1)
+        bit = m_u8[e] & 1
 
-        # Inline Metropolis (min(1, ratio))
+        # Metropolis
         if bit == 0:
             # 0 -> 1
-            if r01 >= 1.0 or rand() < r01:
-                m_arr[e] ^= 1
-                flipped.append(e)
+            if r01 >= 1.0 or np.random.random() < r01:
+                m_u8[e] ^= 1
+                flipped[nflip] = e
+                nflip += 1
                 head = next_head
                 if head == tail:
-                    return True
+                    return 1
         else:
             # 1 -> 0
-            if r10 >= 1.0 or rand() < r10:
-                m_arr[e] ^= 1
-                flipped.append(e)
+            if r10 >= 1.0 or np.random.random() < r10:
+                m_u8[e] ^= 1
+                flipped[nflip] = e
+                nflip += 1
                 head = next_head
                 if head == tail:
-                    return True
+                    return 1
+
+    # ABORT: rollback all accepted flips so syndrome sector is unchanged
+    for j in range(nflip):
+        e = flipped[j]
+        m_u8[e] ^= 1
+    return 0
+
+def warmup_numba(check_ptr, check_edges, edge_checks):
+    m = np.zeros(edge_checks.shape[0], dtype=np.uint8)
+    np.random.seed(0)
+    worm_closed_loop_update_numba(m, check_ptr, check_edges, edge_checks, 1.0, 1.0,10)
 
 # ------------------------------------------------------------
 # Main estimators (Hx and Icoh)
@@ -248,7 +251,6 @@ def estimate_Hx_given_syndrome_fast(
     check_ptr: np.ndarray,
     check_edges: np.ndarray,
     edge_checks: np.ndarray,
-    rng: np.random.Generator,
     r01: float,
     r10: float,
     burn_in_worms: int,
@@ -259,50 +261,48 @@ def estimate_Hx_given_syndrome_fast(
 
     m_cur = m_start.copy()
 
-    count = 0
-    # m_start_frozen = m_start.copy()
-    # sig0 = syndrome_Z_u8(H_Z, m_start)
+    aborts = 0
+    m_start_frozen = m_start.copy()
+    sig0 = syndrome_Z_u8(H_Z, m_start)
 
     # burn-in
     for _ in range(burn_in_worms):
-        ok = worm_closed_loop_update_fast(m_cur, check_ptr, check_edges, edge_checks, rng, r01, r10)
+        ok = worm_closed_loop_update_numba(m_cur, check_ptr, check_edges, edge_checks, r01, r10, int(H_Z.shape[0]*800))
         if not ok:
-            count += 1
+            aborts += 1
 
     # check after burn-in
-    # if DEBUG:
-    #     sigB = syndrome_Z_u8(H_Z, m_cur)
-    #     if not np.array_equal(sig0, sigB):
-    #         raise RuntimeError("Syndrome changed during burn-in.")
+    if DEBUG:
+        sigB = syndrome_Z_u8(H_Z, m_cur)
+        if not np.array_equal(sig0, sigB):
+            raise RuntimeError("Syndrome changed during burn-in.")
 
     n1 = 0
     for _ in range(N_log):
-        # m_before = m_cur.copy()
+        m_before = m_cur.copy()
         for _ in range(worms_per_sample):
-            ok = worm_closed_loop_update_fast(m_cur, check_ptr, check_edges, edge_checks, rng, r01, r10)
+            ok = worm_closed_loop_update_numba(m_cur, check_ptr, check_edges, edge_checks, r01, r10, int(H_Z.shape[0]*800))
             if not ok:
-                count += 1
+                aborts += 1
 
-        # if DEBUG:
-        #     sig_before = syndrome_Z_u8(H_Z, m_before)
-        #     sig_after = syndrome_Z_u8(H_Z, m_cur)
-        #     if np.any(sig_before ^ sig_after):
-        #         raise RuntimeError("Single worm step batch changed syndrome.")
+        if DEBUG:
+            sig_before = syndrome_Z_u8(H_Z, m_before)
+            sig_after = syndrome_Z_u8(H_Z, m_cur)
+            if np.any(sig_before ^ sig_after):
+                raise RuntimeError("Single worm step batch changed syndrome.")
 
         delta = (m_cur ^ m_start)
         n1 += logical_bit_xX_from_delta_idx(delta, lZ_idx)
 
-    if count!=0: print(count)
-
     # Sanity check - worms are syndrome preserving - can go inside N_log loop also
-    # if DEBUG:
-    #     sig1 = syndrome_Z_u8(H_Z, m_cur)
-    #     if not np.array_equal(sig0, sig1):
-    #         raise RuntimeError("Worm did not preserve syndrome sector.")
-    # assert np.array_equal(m_start, m_start_frozen), "m_start was mutated!"
+    if DEBUG:
+        sig1 = syndrome_Z_u8(H_Z, m_cur)
+        if not np.array_equal(sig0, sig1):
+            raise RuntimeError("Worm did not preserve syndrome sector.")
+    assert np.array_equal(m_start, m_start_frozen), "m_start was mutated!"
 
     p1 = n1 / float(N_log)
-    return h2_binary(p1)
+    return h2_binary(p1), aborts
 
 def estimate_Icoh_vs_alpha_d2_fast(
     L: int,
@@ -320,7 +320,8 @@ def estimate_Icoh_vs_alpha_d2_fast(
     H_Z, l_Z, n = build_moebius_code_vertex(L=L, w=w, d=2)
     check_ptr, check_edges, edge_checks = build_adjacency_csr(H_Z)
 
-    # Precompute logical-Z support once
+    warmup_numba(check_ptr, check_edges, edge_checks)
+
     lZ_idx = precompute_lZ_support(l_Z)
 
     ps = np.array([alpha_to_p(float(a)) for a in alphas], dtype=float)
@@ -328,38 +329,38 @@ def estimate_Icoh_vs_alpha_d2_fast(
     Hx = np.zeros_like(alphas, dtype=float)
 
     for ia, alpha in enumerate(alphas):
+        # seed Numba RNG once per alpha (good)
+        np.random.seed(int(rng.integers(0, 2**31 - 1)))
+
         alpha = float(alpha)
         P0, P1 = noise_probs_wrapped_d2(alpha)
 
-        # precompute ratios once per alpha
-        # (handle edge cases)
-        if P0 == 0.0:
-            r01 = 1.0
-        else:
-            r01 = P1 / P0
-        if P1 == 0.0:
-            r10 = 1.0
-        else:
-            r10 = P0 / P1
+        r01 = 1.0 if P0 == 0.0 else (P1 / P0)
+        r10 = 1.0 if P1 == 0.0 else (P0 / P1)
 
         H_accum = 0.0
+        Aborts = 0.0
         for _ in range(N_syn):
             m_start = sample_x_error_vector_u8(n, P1, rng)
-            H_accum += estimate_Hx_given_syndrome_fast(
-                H_Z = H_Z,          # just for sanity check
+            H_, A_ = estimate_Hx_given_syndrome_fast(
+                H_Z=H_Z,
                 lZ_idx=lZ_idx,
                 m_start=m_start,
                 check_ptr=check_ptr,
                 check_edges=check_edges,
                 edge_checks=edge_checks,
-                rng=rng,
                 r01=r01,
                 r10=r10,
                 burn_in_worms=burn_in_worms,
                 N_log=N_log,
                 worms_per_sample=worms_per_sample,
-                DEBUG=True,   # False
+                DEBUG=False,
             )
+            H_accum += H_
+            Aborts += A_
+
+        AR = Aborts/(N_syn * (burn_in_worms + N_log * worms_per_sample))
+        if AR>=0.01: print('(alpha,Aborts Ratio):', (alpha, AR))
 
         H_mean = H_accum / float(N_syn)
         Hx[ia] = H_mean
@@ -367,19 +368,20 @@ def estimate_Icoh_vs_alpha_d2_fast(
 
     return ps, Icoh, Hx
 
+
 # ------------------------------------------------------------
 # Example usage
 # ------------------------------------------------------------
 if __name__ == "__main__":
-    alphas = np.linspace(0.02, 1.0, 20)
+    alphas = np.linspace(0.05, 0.80, 20)
 
     mc_params = {
-        # (3, 3): dict(seed=100, N_syn=100, N_log=300,  burn_in=50,  worms_per_sample=2),
-        # (5, 5): dict(seed=200, N_syn=150, N_log=350,  burn_in=55,  worms_per_sample=3),
-        (7, 7): dict(seed=300, N_syn=150, N_log=350,  burn_in=55,  worms_per_sample=3),
-        # (9, 9): dict(seed=400, N_syn=150, N_log=350,  burn_in=55,  worms_per_sample=3),
-        # (11,11): dict(seed=500, N_syn=200, N_log=400, burn_in=60, worms_per_sample=5),
-        # (15, 15): dict(seed=600, N_syn=200, N_log=400, burn_in=60, worms_per_sample=5)
+        # (3, 3): dict(seed=100, N_syn=200, N_log=400, burn_in=50, worms_per_sample=2),
+        (7, 7): dict(seed=300, N_syn=300, N_log=800, burn_in=120, worms_per_sample=4),
+        (11, 11): dict(seed=1500, N_syn=400, N_log=1200, burn_in=120, worms_per_sample=6),
+        (21, 21): dict(seed=600, N_syn=120, N_log=450, burn_in=90, worms_per_sample=4),
+        (31, 31): dict(seed=700, N_syn=90, N_log=350, burn_in=100, worms_per_sample=4),
+        (41, 41): dict(seed=800, N_syn=70, N_log=280, burn_in=110, worms_per_sample=4),
     }
 
     for (L, w), pars in mc_params.items():
@@ -411,3 +413,18 @@ if __name__ == "__main__":
     plt.legend(fontsize=9)
     plt.tight_layout()
     plt.show()
+
+
+# for (L, w), pars in mc_params.items():
+#     ps_out, Icoh_out, _ = pickle.load(open('../d2_data/CI_Worm_d2_Eq18_L=%i_w=%i.pkl' % (L, w), 'rb'))
+#     label = f"(L,w)=({L},{w}), Nsyn={pars['N_syn']}, Nlog={pars['N_log']}"
+#     plt.plot(ps_out, Icoh_out, label=label)
+#     plt.scatter(ps_out, Icoh_out, s=12)
+
+# plt.axhline(0.0, color="k", linewidth=1)
+# plt.axhline(0., color="k", linewidth=1)
+# plt.xlabel(r"$p = P(1) = \frac{1-e^{-\alpha}}{2}$")
+# plt.ylabel(r"$I_{\rm coh} = 1 - 2H(x_X|\sigma_Z)$")
+# plt.legend(fontsize=9)
+# plt.tight_layout()
+# plt.show()
