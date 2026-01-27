@@ -1,7 +1,20 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import time
 import pickle
+import numpy as np
+import matplotlib.pyplot as plt
+
+'''
+Noise Model - Using Eq(18) in notes
+To Think/Do:
+1. Boundary-termination worms are not implemented here (requires explicit boundary nodes in the check graph); 
+the current code rejects boundary edges by default. - do this - it will make code faster.
+
+2. m_curr - m_start.....rather than fixing a m_0 and doing m_curr - m_0.
+
+3. max_steps??
+
+4. near threshold you must increase mixing (burn-in/thinning) and sample counts - Ideal Parameters ?
+'''
 
 # ------------------------------------------------------------
 # Möbius code construction (faster H_Z build)
@@ -411,19 +424,3 @@ if __name__ == "__main__":
     plt.legend(fontsize=9)
     plt.tight_layout()
     plt.show()
-    
-'''
-for (L, w), pars in mc_params.items():
-    ps_out, Icoh_out, _ = pickle.load(open('CI_Worm_d2_Eq18_L=%i_w=%i.pkl' % (L, w), 'rb'))
-    label = f"(L,w)=({L},{w}), Nsyn={pars['N_syn']}, Nlog={pars['N_log']}"
-    plt.plot(ps_out, Icoh_out, label=label)
-    plt.scatter(ps_out, Icoh_out, s=12)
-
-plt.axhline(0.0, color="k", linewidth=1)
-plt.axhline(0., color="k", linewidth=1)
-plt.xlabel(r"$p = P(1) = \frac{1-e^{-\alpha}}{2}$")
-plt.ylabel(r"$I_{\rm coh} = 1 - 2H(x_X|\sigma_Z)$")
-plt.legend(fontsize=9)
-plt.tight_layout()
-plt.show()
-'''
