@@ -64,6 +64,24 @@ class MoebiusCodeQubit(MoebiusCode):
 
         return jnp.mod(jnp.dot(self.h_x_qubit, error), self.d)
     
+    def get_full_plaquette_syndrome(
+        self,
+        error: ArrayLike
+    ) -> Array:
+        """Computes the plaquette syndrome (X-type) associated with 
+        error, but including the syndrome associated with the plaquette
+        we removed for the constraint. This is useful for the 
+        implementation of the worm algorithm
+        
+        Args:
+            error: The plaquette error array
+        
+        Returns:
+            An array representing the plaquette error syndrome
+        """
+        h_x_qubit_full = jnp.mod(self.h_x, 2)
+        return jnp.mod(jnp.dot(h_x_qubit_full, error), self.d)
+    
     def get_vertex_candidate_error(
         self,
         syndrome: ArrayLike

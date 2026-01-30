@@ -1,6 +1,5 @@
 notebooks/testing_coherent_info.ipynb
 src/coherentinfo/__pycache__/*
-src/coherentinfo/errormodel.py
 notebooks/coherent_info.ipynb
 tests/__pycache__/*
 
