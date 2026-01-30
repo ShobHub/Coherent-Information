@@ -1,12 +1,24 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import time
 import pickle
+import numpy as np
+import matplotlib.pyplot as plt
+
+'''
+Noise Model - Using Eq(18) in notes
+To Think/Do:
+1. Boundary-termination worms are not implemented here (requires explicit boundary nodes in the check graph); 
+the current code rejects boundary edges by default. - do this - it will make code faster.
+
+2. m_curr - m_start.....rather than fixing a m_0 and doing m_curr - m_0.
+
+3. max_steps??
+
+4. near threshold you must increase mixing (burn-in/thinning) and sample counts - Ideal Parameters ?
+'''
 
 # ------------------------------------------------------------
 # Möbius code construction (faster H_Z build)
 # ------------------------------------------------------------
-
 def build_moebius_code_vertex(L: int, w: int, d: int = 2):
     """
     Returns:
@@ -72,7 +84,6 @@ def build_moebius_code_vertex(L: int, w: int, d: int = 2):
 # Noise model: wrapped-FT Eq(18) specialized to d=2
 #   P0 = 1/2(1+e^{-alpha}), P1 = 1/2(1-e^{-alpha})
 # ------------------------------------------------------------
-
 def noise_probs_wrapped_d2(alpha: float) -> tuple[float, float]:
     ea = np.exp(-alpha)
     P0 = 0.5 * (1.0 + ea)
@@ -94,7 +105,6 @@ def h2_binary(p1: float) -> float:
 # ------------------------------------------------------------
 # CSR adjacency (fast)
 # ------------------------------------------------------------
-
 def build_adjacency_csr(H_Z: np.ndarray):
     """
     Build:
@@ -131,7 +141,6 @@ def build_adjacency_csr(H_Z: np.ndarray):
 # ------------------------------------------------------------
 # Fast Bernoulli sampling for m_start using P1(alpha)
 # ------------------------------------------------------------
-
 def sample_x_error_vector_u8(n: int, P1: float, rng: np.random.Generator) -> np.ndarray:
     """Return uint8 vector in {0,1}^n with P(1)=P1."""
     return (rng.random(n) < P1).astype(np.uint8)
@@ -139,15 +148,39 @@ def sample_x_error_vector_u8(n: int, P1: float, rng: np.random.Generator) -> np.
 # ------------------------------------------------------------
 # Logical bit extraction (d=2): x_X = <l_Z, delta_m> mod 2
 # ------------------------------------------------------------
+# Precompute lZ support indices once (O(n))
+def precompute_lZ_support(l_Z: np.ndarray) -> np.ndarray:
+    """
+    Returns indices where l_Z is odd (==1 mod 2). For d=2, these are the edges in logical Z support.
+    """
+    return np.flatnonzero(l_Z & 1).astype(np.int32)
 
-def logical_bit_xX_from_delta_u8(delta_m: np.ndarray, l_Z: np.ndarray) -> int:
-    # l_Z is int8; delta_m is uint8
-    return int((np.dot((l_Z & 1).astype(np.int16), (delta_m & 1).astype(np.int16)) & 1))
+# Fast logical bit extraction using only support indices (O(|lZ|) ~ O(L))
+def logical_bit_xX_from_delta_idx(delta_m_u8: np.ndarray, lZ_idx: np.ndarray) -> int:
+    """
+    Compute x_X = <l_Z, delta_m> mod 2, but only over the support of l_Z.
+    delta_m_u8: uint8 array in {0,1}^n
+    lZ_idx: int32 array of indices where l_Z==1 mod 2
+    """
+    # Sum only the support bits and take parity
+    return int(delta_m_u8[lZ_idx].sum() & 1)
+
+# ------------------------------------------------------------
+# For sanity check - calculate syndrome for any error
+# ------------------------------------------------------------
+def syndrome_Z_u8(H_Z: np.ndarray, m_u8: np.ndarray) -> np.ndarray:
+    H2 = (H_Z != 0).astype(np.int8)
+    v = H2.astype(np.int16) @ m_u8.astype(np.int16)
+    return (v & 1).astype(np.uint8)
+
+# ------------------------------------------------------------
+# Fixed reference error, m_0 ??
+# ------------------------------------------------------------
+
 
 # ------------------------------------------------------------
 # Worm kernel (pure Python, optimized)
 # ------------------------------------------------------------
-
 def worm_closed_loop_update_fast(
     m: np.ndarray,                 # uint8 vector
     check_ptr: np.ndarray,         # int32
@@ -174,10 +207,15 @@ def worm_closed_loop_update_fast(
     tail = int(integers(r_z))
     head = tail
 
+    flipped = []  # store edges we actually flipped (accepted moves)
+
     steps = 0
     while True:
         steps += 1
         if steps > max_steps:
+            # ABORT: undo partial worm so syndrome is unchanged
+            for e in flipped:
+                m_arr[e] ^= 1
             return False
 
         start = cptr[head]
@@ -200,6 +238,7 @@ def worm_closed_loop_update_fast(
             # 0 -> 1
             if r01 >= 1.0 or rand() < r01:
                 m_arr[e] ^= 1
+                flipped.append(e)
                 head = next_head
                 if head == tail:
                     return True
@@ -207,6 +246,7 @@ def worm_closed_loop_update_fast(
             # 1 -> 0
             if r10 >= 1.0 or rand() < r10:
                 m_arr[e] ^= 1
+                flipped.append(e)
                 head = next_head
                 if head == tail:
                     return True
@@ -214,9 +254,9 @@ def worm_closed_loop_update_fast(
 # ------------------------------------------------------------
 # Main estimators (Hx and Icoh)
 # ------------------------------------------------------------
-
 def estimate_Hx_given_syndrome_fast(
-    l_Z: np.ndarray,               # int8
+    H_Z: np.ndarray,
+    lZ_idx: np.ndarray,               # int8
     m_start: np.ndarray,           # uint8
     check_ptr: np.ndarray,
     check_edges: np.ndarray,
@@ -227,29 +267,55 @@ def estimate_Hx_given_syndrome_fast(
     burn_in_worms: int,
     N_log: int,
     worms_per_sample: int,
+    DEBUG: bool,
 ) -> float:
+
     m_cur = m_start.copy()
+
+    count = 0
+    # m_start_frozen = m_start.copy()
+    # sig0 = syndrome_Z_u8(H_Z, m_start)
 
     # burn-in
     for _ in range(burn_in_worms):
-        worm_closed_loop_update_fast(
-            m_cur, check_ptr, check_edges, edge_checks,
-            rng, r01, r10
-        )
+        ok = worm_closed_loop_update_fast(m_cur, check_ptr, check_edges, edge_checks, rng, r01, r10)
+        if not ok:
+            count += 1
+
+    # check after burn-in
+    # if DEBUG:
+    #     sigB = syndrome_Z_u8(H_Z, m_cur)
+    #     if not np.array_equal(sig0, sigB):
+    #         raise RuntimeError("Syndrome changed during burn-in.")
 
     n1 = 0
     for _ in range(N_log):
+        # m_before = m_cur.copy()
         for _ in range(worms_per_sample):
-            worm_closed_loop_update_fast(
-                m_cur, check_ptr, check_edges, edge_checks,
-                rng, r01, r10
-            )
+            ok = worm_closed_loop_update_fast(m_cur, check_ptr, check_edges, edge_checks, rng, r01, r10)
+            if not ok:
+                count += 1
+
+        # if DEBUG:
+        #     sig_before = syndrome_Z_u8(H_Z, m_before)
+        #     sig_after = syndrome_Z_u8(H_Z, m_cur)
+        #     if np.any(sig_before ^ sig_after):
+        #         raise RuntimeError("Single worm step batch changed syndrome.")
+
         delta = (m_cur ^ m_start)
-        n1 += logical_bit_xX_from_delta_u8(delta, l_Z)
+        n1 += logical_bit_xX_from_delta_idx(delta, lZ_idx)
+
+    if count!=0: print(count)
+
+    # Sanity check - worms are syndrome preserving - can go inside N_log loop also
+    # if DEBUG:
+    #     sig1 = syndrome_Z_u8(H_Z, m_cur)
+    #     if not np.array_equal(sig0, sig1):
+    #         raise RuntimeError("Worm did not preserve syndrome sector.")
+    # assert np.array_equal(m_start, m_start_frozen), "m_start was mutated!"
 
     p1 = n1 / float(N_log)
     return h2_binary(p1)
-
 
 def estimate_Icoh_vs_alpha_d2_fast(
     L: int,
@@ -260,12 +326,15 @@ def estimate_Icoh_vs_alpha_d2_fast(
     N_log: int,
     burn_in_worms: int,
     worms_per_sample: int,
-    save_every: int = 0,  # 0 disables intermediate prints/saves
 ):
+
     rng = np.random.default_rng(seed)
 
     H_Z, l_Z, n = build_moebius_code_vertex(L=L, w=w, d=2)
     check_ptr, check_edges, edge_checks = build_adjacency_csr(H_Z)
+
+    # Precompute logical-Z support once
+    lZ_idx = precompute_lZ_support(l_Z)
 
     ps = np.array([alpha_to_p(float(a)) for a in alphas], dtype=float)
     Icoh = np.zeros_like(alphas, dtype=float)
@@ -290,7 +359,8 @@ def estimate_Icoh_vs_alpha_d2_fast(
         for _ in range(N_syn):
             m_start = sample_x_error_vector_u8(n, P1, rng)
             H_accum += estimate_Hx_given_syndrome_fast(
-                l_Z=l_Z,
+                H_Z = H_Z,          # just for sanity check
+                lZ_idx=lZ_idx,
                 m_start=m_start,
                 check_ptr=check_ptr,
                 check_edges=check_edges,
@@ -301,14 +371,12 @@ def estimate_Icoh_vs_alpha_d2_fast(
                 burn_in_worms=burn_in_worms,
                 N_log=N_log,
                 worms_per_sample=worms_per_sample,
+                DEBUG=True,   # False
             )
 
         H_mean = H_accum / float(N_syn)
         Hx[ia] = H_mean
         Icoh[ia] = 1.0 - 2.0 * H_mean
-
-        if save_every and ((ia + 1) % save_every == 0):
-            print(f"alpha[{ia+1}/{len(alphas)}]={alpha:.4f}  p={ps[ia]:.4f}  Icoh={Icoh[ia]:.4f}")
 
     return ps, Icoh, Hx
 
@@ -319,12 +387,12 @@ if __name__ == "__main__":
     alphas = np.linspace(0.02, 1.0, 20)
 
     mc_params = {
-        (3, 3): dict(seed=100, N_syn=100, N_log=300,  burn_in=50,  worms_per_sample=2),
-        (5, 5): dict(seed=200, N_syn=150, N_log=350,  burn_in=55,  worms_per_sample=3),
+        # (3, 3): dict(seed=100, N_syn=100, N_log=300,  burn_in=50,  worms_per_sample=2),
+        # (5, 5): dict(seed=200, N_syn=150, N_log=350,  burn_in=55,  worms_per_sample=3),
         (7, 7): dict(seed=300, N_syn=150, N_log=350,  burn_in=55,  worms_per_sample=3),
-        (9, 9): dict(seed=400, N_syn=150, N_log=350,  burn_in=55,  worms_per_sample=3),
-        (11,11): dict(seed=500, N_syn=200, N_log=400, burn_in=60, worms_per_sample=5),
-        (15, 15): dict(seed=600, N_syn=200, N_log=400, burn_in=60, worms_per_sample=5)
+        # (9, 9): dict(seed=400, N_syn=150, N_log=350,  burn_in=55,  worms_per_sample=3),
+        # (11,11): dict(seed=500, N_syn=200, N_log=400, burn_in=60, worms_per_sample=5),
+        # (15, 15): dict(seed=600, N_syn=200, N_log=400, burn_in=60, worms_per_sample=5)
     }
 
     for (L, w), pars in mc_params.items():
@@ -337,18 +405,14 @@ if __name__ == "__main__":
             N_syn=pars["N_syn"],
             N_log=pars["N_log"],
             burn_in_worms=pars["burn_in"],
-            worms_per_sample=pars["worms_per_sample"],
-            save_every=0
+            worms_per_sample=pars["worms_per_sample"]
         )
 
         dt = time.time() - st
         print(f"(L,w)=({L},{w}) time={dt:.2f}s")
 
         # Save
-        pickle.dump(
-            [ps_out, Icoh_out, Hx_out],
-            open(f"CI_Worm_d2_Eq18_L={L}_w={w}.pkl", "wb")
-        )
+        # pickle.dump([ps_out, Icoh_out, Hx_out],open(f"../d2_data/CI_Worm_d2_Eq18_L={L}_w={w}.pkl", "wb"))
 
         label = f"(L,w)=({L},{w}), Nsyn={pars['N_syn']}, Nlog={pars['N_log']}"
         plt.plot(ps_out, Icoh_out, label=label)
@@ -360,19 +424,3 @@ if __name__ == "__main__":
     plt.legend(fontsize=9)
     plt.tight_layout()
     plt.show()
-    
-'''
-for (L, w), pars in mc_params.items():
-    ps_out, Icoh_out, _ = pickle.load(open('CI_Worm_d2_Eq18_L=%i_w=%i.pkl' % (L, w), 'rb'))
-    label = f"(L,w)=({L},{w}), Nsyn={pars['N_syn']}, Nlog={pars['N_log']}"
-    plt.plot(ps_out, Icoh_out, label=label)
-    plt.scatter(ps_out, Icoh_out, s=12)
-
-plt.axhline(0.0, color="k", linewidth=1)
-plt.axhline(0., color="k", linewidth=1)
-plt.xlabel(r"$p = P(1) = \frac{1-e^{-\alpha}}{2}$")
-plt.ylabel(r"$I_{\rm coh} = 1 - 2H(x_X|\sigma_Z)$")
-plt.legend(fontsize=9)
-plt.tight_layout()
-plt.show()
-'''
