@@ -4,9 +4,11 @@ import pytest
 from coherentinfo.errormodel import (
     ErrorModelBernoulli,
     ErrorModelPoisson, 
-    ErrorModelLindblad
+    ErrorModelLindblad,
+    ErrorModelLindbladTwoOddPrime,
 )
 import numpy as np
+import jax.numpy as jnp
 from numpy.typing import NDArray
 import jax
 jax.config.update("jax_enable_x64", True)
@@ -106,6 +108,28 @@ def test_inverse_sampling_bernoulli():
     delta = np.sqrt(np.sum((probs - sampled_frequencies)**2))
     assert delta < epsilon, \
         f"Sampled probabilities do not match the expected ones."
+    
+def test_modular_probability():
+    """Tests that the probility computes using m mod d and those
+    computed using m mod 2 and m mod p match, with d = 2 * p and p odd prime. 
+    This is guaranteed from the one-to-one correspondance between m mod d and 
+    m mod 2 and m mod p, which follows from the Chinese remainder theorem."""
+    d = 6
+    gamma = 0.1
+    em_lindblad = ErrorModelLindbladTwoOddPrime(1, d, gamma)
+    m_mod_2_vec = jnp.array([0, 1, 0, 1, 0, 1])
+    m_mod_p_vec = jnp.array([0, 1, 2, 0, 1, 2])
+    prob_m_vec = em_lindblad.probs
+    prob_m_mod_vec = jax.vmap(em_lindblad.get_modular_probability)(
+        m_mod_2_vec, 
+        m_mod_p_vec
+    )
+
+    assert jnp.all(prob_m_vec == prob_m_mod_vec) == True, \
+        f"The probability computed with the normal method \n" \
+        f"and the modular method do not match."
+
+
     
 
 

@@ -3,7 +3,7 @@ import jax
 from jax import Array
 from typing import Tuple
 
-def run_worm_plaquette_qubit(
+def run_worm_decoder_plaquette_qubit(
     syndrome: Array,
     base_key: Array,
     h_x: Array,

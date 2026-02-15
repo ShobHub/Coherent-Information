@@ -12,7 +12,7 @@ from coherentinfo.linalg import (is_prime,
 from coherentinfo.errormodel import ErrorModel
 from coherentinfo.moebius import MoebiusCode
 
-class MoebiusCodeOddPrime(MoebiusCode):
+class MoebiusCodeTwoOddPrime(MoebiusCode):
     """ Subclass representing the Moebius code when d = 2 * p
     and p is an odd prime.
     """
