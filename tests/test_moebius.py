@@ -7,11 +7,12 @@ from coherentinfo.errormodel import ErrorModelBernoulli
 import numpy as np
 from typing import List, Tuple
 from numpy.typing import NDArray
+from jax.typing import ArrayLike
 from coherentinfo.linalg import finite_field_matrix_rank
 import jax
 
 @pytest.fixture
-def moebius_code_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
+def moebius_code_example() -> List[Tuple[ArrayLike, ArrayLike]]:
     """Provides example Moebius code matrices for testing."""
     examples = []
 
@@ -42,7 +43,7 @@ def moebius_code_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
     return examples
 
 @pytest.fixture
-def moebius_code_qubit_example() -> List[Tuple[NDArray[np.int_], NDArray[np.int_]]]:
+def moebius_code_qubit_example() -> List[Tuple[ArrayLike, ArrayLike]]:
     """Provides example Moebius code matrices for testing."""
     examples = []
 
