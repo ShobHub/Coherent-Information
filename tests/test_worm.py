@@ -5,8 +5,10 @@ import pytest
 from coherentinfo.moebius_two_odd_prime import MoebiusCodeTwoOddPrime
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
 from coherentinfo.worm import (stab_labels, 
-                               stabilizer_edges, 
-                               plaquette_move_probabilities)
+                               stabilizer_edges,
+                               move_error,
+                               single_move_probability,
+                               all_move_probabilities)
 import jax.numpy as jnp
 import numpy as np
 from typing import Tuple
@@ -45,7 +47,41 @@ def test_stab_edges(moebius_code_example):
     assert cond == True, \
         f"The edges do not belong to the stabilizer in example #{idx}"
 
-def test_plaquette_moves_probability(moebius_code_example):
+def test_move_error(moebius_code_example):
+    """Tests the function that returns an allowed local error"""
+    num_examples = len(moebius_code_example)
+    idx = np.random.randint(num_examples)
+    moebius_code = moebius_code_example[idx]
+    p = moebius_code.p
+    head = np.random.randint(moebius_code.num_plaquette_checks)
+    h_x_mod_p = moebius_code.h_x_mod_p
+    head_edges = stabilizer_edges(head, h_x_mod_p)
+    edge = head_edges[np.random.randint(4)]
+    power = np.random.randint(p)
+    jit_move_error = jax.jit(move_error)
+    error = jit_move_error(edge, power, head, h_x_mod_p, p)
+
+    incident_stabs = stab_labels(edge, h_x_mod_p)
+    head_is_first = incident_stabs[0] == head 
+
+    candidate_head = jax.lax.cond(
+        head_is_first, 
+        lambda : incident_stabs[1], 
+        lambda : incident_stabs[0]
+    )
+
+    candidate_stab = h_x_mod_p[candidate_head]
+    candidate_stab_power = jnp.mod(power * candidate_stab, p)
+    error_mod_2_test = jnp.zeros(moebius_code.num_edges).at[edge].set(1)
+    error_test = jnp.vstack((error_mod_2_test, candidate_stab_power))
+    cond = jnp.all(error == error_test)
+    assert cond, \
+        f"The error associated with a move is not correct in example #{idx}"
+
+def test_single_move_probability(moebius_code_example):
+    """Tests that the function to compute the single move probabilities
+    is correct """
+
     num_examples = len(moebius_code_example)
     idx = np.random.randint(num_examples)
     moebius_code = moebius_code_example[idx]
@@ -53,11 +89,101 @@ def test_plaquette_moves_probability(moebius_code_example):
     em_lindblad = ErrorModelLindbladTwoOddPrime(
         moebius_code.num_edges, d=moebius_code.d, gamma_t=gamma_t
     )
-    head = 3
+    p = moebius_code.p
+    head = np.random.randint(moebius_code.num_plaquette_checks)
+    h_x_mod_p = moebius_code.h_x_mod_p
+    base_key = jax.random.PRNGKey(42)
+    error_mod_d = em_lindblad.generate_random_error(base_key)
+    error = jnp.vstack([
+        jnp.mod(error_mod_d, 2), jnp.mod(error_mod_d, p)]
+        )
+    head_edges = stabilizer_edges(head, h_x_mod_p)
+    edge = head_edges[np.random.randint(4)]
+    power = np.random.randint(p)
+
+    jit_single_move_probability = jax.jit(
+        single_move_probability, static_argnums=(5, 6)
+    )
+
+    prob_move, prob_move_error = jit_single_move_probability(
+        edge,
+        power,
+        error,
+        head,
+        h_x_mod_p,
+        p,
+        em_lindblad
+    )
+
+    if edge < 0:
+        prob_move_test = -1.0
+        prob_move_error_test = -1.0
+    else:
+        incident_stabs = stab_labels(edge, h_x_mod_p)
+
+        head_is_first = incident_stabs[0] == head 
+
+        candidate_head = jax.lax.cond(
+            head_is_first, 
+            lambda : incident_stabs[1], 
+            lambda : incident_stabs[0]
+        )
+
+        candidate_stab = h_x_mod_p[candidate_head]
+
+        edges_candidate_head = stabilizer_edges(candidate_head, h_x_mod_p)
+
+        new_error_mod_p = jnp.mod(error[1, :] + power * candidate_stab, p)
+
+        prob_move_test = 1.0
+        prob_move_error_test = 1.0
+
+        for edge_ch in edges_candidate_head:
+            if edge_ch != -1:
+                if edge_ch == edge:
+                    prob_move_test = prob_move_test * \
+                        em_lindblad.get_modular_probability(
+                            jnp.mod(1 + error[0, edge_ch], 2),
+                            new_error_mod_p[edge_ch]
+                            )
+                else:
+                    prob_move_test = prob_move_test * \
+                        em_lindblad.get_modular_probability(
+                            error[0, edge_ch],
+                            new_error_mod_p[edge_ch]
+                            )
+
+                
+                prob_move_error_test = prob_move_error_test * \
+                    em_lindblad.get_modular_probability(
+                        error[0, edge_ch],
+                        error[1, edge_ch]
+                        ) 
+    epsilon = 1e-8
+    assert jnp.abs(prob_move - prob_move_test) < epsilon, \
+        f"Move probabilities do not match in example #{idx}!"
+    assert jnp.abs(prob_move_error - prob_move_error_test) < epsilon, \
+        f"Initial move error probabilities do not match in example #{idx}!"
+
+
+def test_all_plaquette_moves_probability(moebius_code_example):
+    """Tests that the probabilities of all possible moves are
+    correct. """
+    num_examples = len(moebius_code_example)
+    idx = np.random.randint(num_examples)
+    moebius_code = moebius_code_example[idx]
+    gamma_t = 0.1
+    em_lindblad = ErrorModelLindbladTwoOddPrime(
+        moebius_code.num_edges, d=moebius_code.d, gamma_t=gamma_t
+    )
+    head = np.random.randint(moebius_code.num_plaquette_checks)
     h_x_mod_p = moebius_code.h_x_mod_p
     # This then also tests jit compilation
-    func = jax.jit(plaquette_move_probabilities, static_argnums=(2, 3))
-    move_probs = func(head, h_x_mod_p, moebius_code.p, em_lindblad)
+    error_mod_2 = jnp.zeros(moebius_code.num_edges, dtype=jnp.int16)
+    error_mod_p = error_mod_2
+    func = jax.jit(all_move_probabilities, static_argnums=(4, 5))
+    move_probs = func(error_mod_2, error_mod_p, 
+                      head, h_x_mod_p, moebius_code.p, em_lindblad)
 
     move_probs_test = np.zeros([4, moebius_code.p])
 
