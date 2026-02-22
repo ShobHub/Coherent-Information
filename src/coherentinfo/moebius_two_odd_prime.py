@@ -44,6 +44,8 @@ class MoebiusCodeTwoOddPrime(MoebiusCode):
         super().compute_and_set_code_properties()
         self.h_x_mod_2 = jnp.mod(self.h_x, 2)
         self.h_x_mod_p = jnp.mod(self.h_x, self.p)
+        self.h_z_mod_2 = jnp.mod(self.h_z, 2)
+        self.h_z_mod_p = jnp.mod(self.h_z, self.p)
         self.plaquette_destab_type_two = \
             self.p * self.plaquette_destab_qubit 
         self.plaquette_destab_mod_p = \
