@@ -26,7 +26,7 @@ def stab_labels(
         The function shall be used only with stabilizer matrices
         where the edge is involved in at most two checks.
     """
-    return jnp.nonzero(stab_mat[:, edge], size=2)[0]
+    return jnp.nonzero(stab_mat[:, edge], size=2, fill_value=-1)[0]
 
 def stabilizer_edges(
     index: int,
@@ -48,7 +48,7 @@ def stabilizer_edges(
 def move_error(
     edge: int,
     power: int,
-    head: int,
+    stab_bool: bool,
     h_mod_p: ArrayLike,
     p: int,
 ) -> ArrayLike:
@@ -57,7 +57,10 @@ def move_error(
     Args:
         edge: the edge where the mod_2 error is placed
         power: the power of the mod_p stabilizer error
-        head: the current head position.
+        stab_bool: a boolean variable that decides whether
+            the first (True) or second (False) incident stabilizer should be 
+            picked. If the edge is incident to a single-stabilizer
+            then it does not matter. 
         h_mod_p: the stabilizer matrix mod p
         p: the odd prime
 
@@ -70,15 +73,20 @@ def move_error(
 
     incident_stabs = stab_labels(edge, h_mod_p)
 
-    head_is_first = incident_stabs[0] == head 
+    # head_is_first = incident_stabs[0] == head 
 
-    candidate_head = jax.lax.cond(
-        head_is_first, 
-        lambda : incident_stabs[1], 
-        lambda : incident_stabs[0]
-    )
+    # candidate_head = jax.lax.cond(
+    #     head_is_first, 
+    #     lambda : incident_stabs[1], 
+    #     lambda : incident_stabs[0]
+    # )
 
-    candidate_stab = h_mod_p[candidate_head]
+    stab_bool_tot = jnp.logical_or(stab_bool, incident_stabs[-1] == -1)
+    candidate_stab_label = incident_stabs[
+        jnp.where(stab_bool_tot, 0, 1)
+    ]
+
+    candidate_stab = h_mod_p[candidate_stab_label, :]
     error_mod_p = jnp.mod(power * candidate_stab, p)
     # This is a simple trick to define a zero array of the 
     # desired size, without using jnp.zeros, which would require
@@ -86,16 +94,11 @@ def move_error(
     error_mod_2 = (0 * error_mod_p).at[edge].set(1)
     return jnp.vstack((error_mod_2, error_mod_p))
 
-
-
-
-
-
 def single_move_probability(
     edge: int,
     power: int,
     error: ArrayLike,
-    head: int,
+    stab_bool: bool,
     h_mod_p: ArrayLike,
     p: int,
     error_model: ErrorModelLindbladTwoOddPrime,
@@ -108,8 +111,10 @@ def single_move_probability(
             the stabilizer adjacent to edge, that is not head
         error: the current error, where the first row is the error mod 2
             and the second the error mod p
-        head: the current head position, needed to identify the 
-            stabilizer where the mod_p error should be placed
+        stab_bool: a boolean variable that decides whether
+            the first (True) or second (False) incident stabilizer should be 
+            picked. If the edge is incident to a single-stabilizer
+            then it does not matter. 
         h_mod_p: the stabilizer matrix mod p
         p: the odd prime
         error_model: the error model to be used to obtain the probabilities
@@ -130,17 +135,14 @@ def single_move_probability(
         # other one
         incident_stabs = stab_labels(edge, h_mod_p)
 
-        head_is_first = incident_stabs[0] == head 
+        stab_bool_tot = jnp.logical_or(stab_bool, incident_stabs[-1] == -1)
+        candidate_stab_label = incident_stabs[
+            jnp.where(stab_bool_tot, 0, 1)
+        ]
 
-        candidate_head = jax.lax.cond(
-            head_is_first, 
-            lambda : incident_stabs[1], 
-            lambda : incident_stabs[0]
-        )
+        edges_candidate_stab = stabilizer_edges(candidate_stab_label, h_mod_p)
 
-        candidate_stab = h_mod_p[candidate_head]
-
-        edges_candidate_head = stabilizer_edges(candidate_head, h_mod_p)
+        candidate_stab = h_mod_p[candidate_stab_label, :]
 
         new_error_mod_p = jnp.mod(error_mod_p + power * candidate_stab, p)
 
@@ -168,7 +170,7 @@ def single_move_probability(
             return prob_move, prob_move_initial_error
 
         probs_move, prob_move_initial_error = \
-            jax.vmap(fun_prob)(edges_candidate_head)
+            jax.vmap(fun_prob)(edges_candidate_stab)
         return jnp.prod(probs_move), jnp.prod(prob_move_initial_error) 
     
     is_edge_negative = edge < 0

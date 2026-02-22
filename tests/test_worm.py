@@ -58,19 +58,20 @@ def test_move_error(moebius_code_example):
     head_edges = stabilizer_edges(head, h_x_mod_p)
     edge = head_edges[np.random.randint(4)]
     power = np.random.randint(p)
+    stab_bool = np.random.randint(0, 2) == 0
     jit_move_error = jax.jit(move_error)
-    error = jit_move_error(edge, power, head, h_x_mod_p, p)
+    error = jit_move_error(edge, power, stab_bool, h_x_mod_p, p)
 
     incident_stabs = stab_labels(edge, h_x_mod_p)
-    head_is_first = incident_stabs[0] == head 
+    stab_bool_tot = jnp.logical_or(stab_bool, incident_stabs[-1] == -1)
+    candidate_stab_label = incident_stabs[
+        jnp.where(stab_bool_tot, 0, 1)
+    ]
 
-    candidate_head = jax.lax.cond(
-        head_is_first, 
-        lambda : incident_stabs[1], 
-        lambda : incident_stabs[0]
-    )
+    # edges_candidate_stab = stabilizer_edges(candidate_stab_label, h_x_mod_p)
 
-    candidate_stab = h_x_mod_p[candidate_head]
+    candidate_stab = h_x_mod_p[candidate_stab_label, :]
+
     candidate_stab_power = jnp.mod(power * candidate_stab, p)
     error_mod_2_test = jnp.zeros(moebius_code.num_edges).at[edge].set(1)
     error_test = jnp.vstack((error_mod_2_test, candidate_stab_power))
@@ -100,6 +101,7 @@ def test_single_move_probability(moebius_code_example):
     head_edges = stabilizer_edges(head, h_x_mod_p)
     edge = head_edges[np.random.randint(4)]
     power = np.random.randint(p)
+    stab_bool = np.random.randint(0, 2) == 0
 
     jit_single_move_probability = jax.jit(
         single_move_probability, static_argnums=(5, 6)
@@ -109,7 +111,7 @@ def test_single_move_probability(moebius_code_example):
         edge,
         power,
         error,
-        head,
+        stab_bool,
         h_x_mod_p,
         p,
         em_lindblad
@@ -121,24 +123,23 @@ def test_single_move_probability(moebius_code_example):
     else:
         incident_stabs = stab_labels(edge, h_x_mod_p)
 
-        head_is_first = incident_stabs[0] == head 
+        stab_bool_tot = jnp.logical_or(stab_bool, incident_stabs[-1] == -1)
+        candidate_stab_label = incident_stabs[
+            jnp.where(stab_bool_tot, 0, 1)
+        ]
 
-        candidate_head = jax.lax.cond(
-            head_is_first, 
-            lambda : incident_stabs[1], 
-            lambda : incident_stabs[0]
-        )
+        edges_candidate_stab = stabilizer_edges(candidate_stab_label, h_x_mod_p)
 
-        candidate_stab = h_x_mod_p[candidate_head]
+        candidate_stab = h_x_mod_p[candidate_stab_label, :]
 
-        edges_candidate_head = stabilizer_edges(candidate_head, h_x_mod_p)
+
 
         new_error_mod_p = jnp.mod(error[1, :] + power * candidate_stab, p)
 
         prob_move_test = 1.0
         prob_move_error_test = 1.0
 
-        for edge_ch in edges_candidate_head:
+        for edge_ch in edges_candidate_stab:
             if edge_ch != -1:
                 if edge_ch == edge:
                     prob_move_test = prob_move_test * \
