@@ -3,7 +3,7 @@
 
 from jax.typing import ArrayLike
 import jax.numpy as jnp
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Callable
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
 import jax
 
@@ -299,7 +299,7 @@ def random_edge_bulk(key):
     """
     return jax.random.randint(key, 1, 0, 4)
 
-
+@jax.jit(static_argnames=['error_model'])
 def worm_step(
     worm_state: Dict,
     x: Dict | None,
@@ -512,6 +512,14 @@ def worm_step(
     )
 
     return new_worm_state, None
+
+def run_worm(
+    initial_worm_state: Dict,
+    error_model: ErrorModelLindbladTwoOddPrime,
+    max_worm_steps: int,
+) -> Dict:
+    pass
+    
     
 
 
