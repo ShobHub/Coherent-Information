@@ -3,7 +3,7 @@
 
 from jax.typing import ArrayLike
 import jax.numpy as jnp
-from typing import Tuple, List
+from typing import Tuple, Dict
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
 import jax
 
@@ -268,6 +268,250 @@ def all_move_probabilities(
     all_probs = vmapped_get_single_prob(head_edges, powers) 
 
     return all_probs, head_edges
+
+def random_edge_boundary(key):
+    """Generates a random integer between 0 and 2 (inclusive) using JAX's 
+     random number generator.
+
+    Args:
+        key (ArrayLike): A random seed key for JAX's random number generator.
+            Usually generated using jax.random.PRNGKey() or 
+            jax.random.split().
+
+    Returns:
+        int: A uniformly distributed random integer in [0, 1, 2].
+    """
+    
+    return jax.random.randint(key, 1, 0, 3)
+
+
+def random_edge_bulk(key):
+    """Generates a random integer between 0 and 3 (inclusive) using JAX's 
+     random number generator.
+
+    Args:
+        key (ArrayLike): A random seed key for JAX's random number generator.
+            Usually generated using jax.random.PRNGKey() or 
+            jax.random.split().
+
+    Returns:
+        int: A uniformly distributed random integer in [0, 1, 2, 3].
+    """
+    return jax.random.randint(key, 1, 0, 4)
+
+
+def worm_step(
+    worm_state: Dict,
+    x: Dict | None,
+    error_model: ErrorModelLindbladTwoOddPrime
+) -> Tuple[Dict, Dict]:
+    """ Implements a single step of the "split" worm algorithm which is 
+    suited for the Moebius code for qudits and d = 2 * p p odd prime. As the 
+    function, is thought to be used in jax.lax.cond the first two arguments
+    are the current state, i.e., the carry, and x, i.e., a slice of the 
+    output (see jax.lax.scan documentation)
+
+    Args:
+        worm_state (Dict): a dictionary with the following keys:
+            worm_error (ArrayLike): a JAX array with two rows, where the first
+                row is the error mod 2 and the second the error mod p
+            head (int): the label of the current head of the worm
+            tail (int): the label of the tail of the worm (which stays fixed)
+            worm_success (bool): a boolean that marks whether the worm has 
+                succeded or not. If it succeeds, it skips all remaining
+                attempts
+            h_error_mod_p (ArrayLike): the stabilizers mod p that are used to
+                generate p errors that give no syndrome
+            h_mod_p (ArrayLike): the stabilizers mod p from which the mod p
+                syndrome can be obtained. Note that if h_error_mod_p is 
+                h_z_mod_p, then h_mod_p is h_x_mod_p (and vice versa). The 
+                function is set up so that both cases are handled.
+            accepted_moves (int): counter of accepted moves
+            attempted_moves (int): counter of attempted moves
+            key (ArrayLike): the key used for random number generation, 
+                which will be split inside the function
+        x (Dict | None):
+            A slice of the worm state, from previous iterations. Usually
+            needed only if you want to keep track of how the worm_state
+            evolves during the scan
+        error_model (ErrorModelLindbladTwoOddPrime): the error model used
+            to comput the necessary probabilities.
+
+    Returns:
+        A tuple with the new worm_state and None, since we do not implement
+        keeping track of the state during the scan.
+    """
+
+    def do_not_attempt_step(worm_state):
+        return worm_state
+
+    def attempt_step(worm_state):
+        # We unpack only the variables that we need
+        worm_error = worm_state["worm_error"]
+        head = worm_state["head"]
+        tail = worm_state["tail"]
+        # The stabilizers of the same kind as the error
+        h_error_mod_p = worm_state["h_error_mod_p"]
+        h_mod_p = worm_state["h_mod_p"]
+        p = error_model.p
+        key = worm_state["key"]
+
+        key, subkey = jax.random.split(key)
+
+        head_edges = stabilizer_edges(head, h_mod_p)
+        # Select a random edge among those available
+        random_integer = jax.lax.cond(
+            head_edges[-1] == -1,
+            random_edge_boundary,
+            random_edge_bulk,
+            subkey
+        )
+        edge = head_edges[random_integer][0]
+        # We need to keep splitting the key any time we use it
+        key, subkey = jax.random.split(key)
+        # Select a random power of the error stabilizers
+        power = jax.random.randint(subkey, 1, 0, p)[0]
+        key, subkey = jax.random.split(key)
+        # Any edge has 1 or 2 stabilizers connected to it
+        # so we select randomly one of the 2. If it is only 1
+        # then obviously that one will be selected (this happens for
+        # boundary vertex stabilizers)
+        stab_bool = jax.random.randint(subkey, 1, 0, 2)[0] == True
+        key, subkey = jax.random.split(key)
+
+        # We add these three keys for later convenience. They will be removes
+        # at the end since the function needs to return a worm state
+        # with the same keys
+        worm_state["edge"] = edge
+        worm_state["power"] = power
+        worm_state["stab_bool"] = stab_bool
+
+        # We compute the probability of performing the move, as well
+        # as the one associated with the initial error
+        prob_move, prob_move_worm_error = single_move_probability(
+            edge,
+            power,
+            worm_error,
+            stab_bool,
+            h_error_mod_p,
+            p,
+            error_model
+        )
+
+        # Their ratios is used to determine the acceptance probability
+        acceptance_prob = jnp.min(
+            jnp.array([1.0, prob_move / prob_move_worm_error]))
+        # This is to handle the case in which we have 3 edges which is 
+        # marked with a -1, and so should always be rejected. 
+        # In that case, the acceptance probability is set to 0
+        acceptance_prob = jax.lax.cond(
+            prob_move < 0, lambda: 0.0, lambda: acceptance_prob)
+
+        def reject(state):
+            # In this case, the only thing that gets updated is the
+            # counter of attempted moves
+            state["attempted_moves"] += 1
+            return state
+
+        def accept(state):
+            # We unpack only the variables that are needed
+            worm_error = state["worm_error"]
+            head = state["head"]
+            p = error_model.p
+            h_error_mod_p = state["h_error_mod_p"]
+            h_mod_p = state["h_mod_p"]
+            edge = state["edge"]
+            power = state["power"]
+            stab_bool = state["stab_bool"]
+            # Only now we compute the probposed move and the new worm
+            proposed_move = move_error(
+                edge, power, stab_bool, h_error_mod_p, p)
+            new_worm_error_mod_2 = jnp.mod(
+                proposed_move[0, :] + worm_error[0, :], 2)
+            new_worm_error_mod_p = jnp.mod(
+                proposed_move[1, :] + worm_error[1, :], p)
+            new_worm_error = jnp.vstack(
+                (new_worm_error_mod_2, new_worm_error_mod_p))
+            # We now update the new parameters
+            new_state = {}
+            new_state["worm_error"] = new_worm_error
+            # The new head is the stabilizer label associated with the
+            # selected edge that that is not the previous head. Note that
+            # if there is only one stabilizer, i.e., we are at the boundary
+            # then it means that the worm succeded and in that case
+            # new_head will be -1
+            incident_stab = stab_labels(edge, h_mod_p)
+            # jax.debug.print("jax.debug.print(x) -> {x}", x=incident_stab)
+            new_head = jax.lax.cond(
+                incident_stab[0] == head, 
+                lambda x: x[1], 
+                lambda x: x[0], 
+                incident_stab
+                )
+
+            new_state["head"] = new_head
+            new_state["tail"] = state["tail"]
+            # This was the previous version, but it is not necessary to
+            # assume the condition state["accepted_moves"] == 0, since you are
+            # already inside the accept function and the head will change
+            # new_state["continue_worm"] = jnp.logical_or(
+            #     new_head != tail, state["accepted_moves"] == 0
+            #     )
+            # The worm succedes, i.e., if either the new head hits the tail
+            # or the new_head hits a boundary, in which case it is set to -1
+            # as discussed above
+            new_state["worm_success"] = jnp.logical_or(
+                new_head == tail,
+                new_head == -1
+            )
+            new_state["h_error_mod_p"] = state["h_error_mod_p"]
+            # new_state["h_mod_2"] = state["h_mod_2"]
+            new_state["h_mod_p"] = state["h_mod_p"]
+            new_state["accepted_moves"] = state["accepted_moves"] + 1
+            new_state["attempted_moves"] = state["attempted_moves"] + 1
+            new_state["key"] = state["key"]
+            new_state["edge"] = edge
+            new_state["power"] = power
+            new_state["stab_bool"] = stab_bool
+            return new_state
+
+        # A random number between 0 and 1 to determing if the move is accepted
+        # or not
+        acceptance_random_number = jax.random.uniform(subkey)
+
+        # The acceptance condition
+        accept_condition = acceptance_random_number <= acceptance_prob
+        # jax.debug.print("jax.debug.print(x) -> {x}", x=acceptance_prob)
+
+        accept_condition = accept_condition
+
+        # Important to update the key!
+        worm_state["key"] = key
+        new_worm_state = \
+            jax.lax.cond(
+                accept_condition,
+                accept,
+                reject,
+                worm_state
+            )
+
+        new_worm_state
+
+        new_worm_state.pop("edge", None)
+        new_worm_state.pop("power", None)
+        new_worm_state.pop("stab_bool", None)
+        return new_worm_state
+
+    # A worm step is attempted only if worm_state["worm_success"]
+    # is False, i.e., the worm has not succeded yet.
+    new_worm_state = jax.lax.cond(
+        worm_state["worm_success"] == False,
+        attempt_step,
+        do_not_attempt_step,
+        worm_state,
+    )
+
+    return new_worm_state, None
     
 
 
