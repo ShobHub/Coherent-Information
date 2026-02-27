@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from typing import Tuple, Dict, Callable
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
 import jax
+from functools import partial
 
 
 def stab_labels(
@@ -299,11 +300,12 @@ def random_edge_bulk(key):
     """
     return jax.random.randint(key, 1, 0, 4)
 
-@jax.jit(static_argnames=['error_model'])
 def worm_step(
     worm_state: Dict,
     x: Dict | None,
-    error_model: ErrorModelLindbladTwoOddPrime
+    h_error_mod_p: ArrayLike,
+    h_mod_p: ArrayLike,
+    error_model: ErrorModelLindbladTwoOddPrime,
 ) -> Tuple[Dict, Dict]:
     """ Implements a single step of the "split" worm algorithm which is 
     suited for the Moebius code for qudits and d = 2 * p p odd prime. As the 
@@ -320,27 +322,33 @@ def worm_step(
             worm_success (bool): a boolean that marks whether the worm has 
                 succeded or not. If it succeeds, it skips all remaining
                 attempts
-            h_error_mod_p (ArrayLike): the stabilizers mod p that are used to
-                generate p errors that give no syndrome
-            h_mod_p (ArrayLike): the stabilizers mod p from which the mod p
-                syndrome can be obtained. Note that if h_error_mod_p is 
-                h_z_mod_p, then h_mod_p is h_x_mod_p (and vice versa). The 
-                function is set up so that both cases are handled.
             accepted_moves (int): counter of accepted moves
             attempted_moves (int): counter of attempted moves
             key (ArrayLike): the key used for random number generation, 
                 which will be split inside the function
-        x (Dict | None):
-            A slice of the worm state, from previous iterations. Usually
-            needed only if you want to keep track of how the worm_state
-            evolves during the scan
-        error_model (ErrorModelLindbladTwoOddPrime): the error model used
-            to comput the necessary probabilities.
+        x (Dict | None): A slice of the worm state, from previous iterations. 
+            Usually needed only if you want to keep track of how the 
+            worm_state evolves during the scan
+        h_error_mod_p (ArrayLike): the stabilizers mod p that are used to
+            generate p errors that give no syndrome
+        h_mod_p (ArrayLike): the stabilizers mod p from which the mod p
+            syndrome can be obtained. Note that if h_error_mod_p is 
+            h_z_mod_p, then h_mod_p is h_x_mod_p (and vice versa). The 
+            function is set up so that both cases are handled.
+        error_model (ErrorModelLindbladTwoOddPrime): The error model used
+                to compute the necessary probabilities.
+        
 
     Returns:
         A tuple with the new worm_state and None, since we do not implement
         keeping track of the state during the scan.
     """
+
+    # We unpack the elements of the dictionary 
+
+    # error_model = worm_settings["error_model"]
+    # h_error_mod_p = worm_settings["h_error_mod_p"]
+    # h_mod_p = worm_settings["h_mod_p"]
 
     def do_not_attempt_step(worm_state):
         return worm_state
@@ -351,8 +359,7 @@ def worm_step(
         head = worm_state["head"]
         tail = worm_state["tail"]
         # The stabilizers of the same kind as the error
-        h_error_mod_p = worm_state["h_error_mod_p"]
-        h_mod_p = worm_state["h_mod_p"]
+        
         p = error_model.p
         key = worm_state["key"]
 
@@ -418,8 +425,6 @@ def worm_step(
             worm_error = state["worm_error"]
             head = state["head"]
             p = error_model.p
-            h_error_mod_p = state["h_error_mod_p"]
-            h_mod_p = state["h_mod_p"]
             edge = state["edge"]
             power = state["power"]
             stab_bool = state["stab_bool"]
@@ -464,9 +469,6 @@ def worm_step(
                 new_head == tail,
                 new_head == -1
             )
-            new_state["h_error_mod_p"] = state["h_error_mod_p"]
-            # new_state["h_mod_2"] = state["h_mod_2"]
-            new_state["h_mod_p"] = state["h_mod_p"]
             new_state["accepted_moves"] = state["accepted_moves"] + 1
             new_state["attempted_moves"] = state["attempted_moves"] + 1
             new_state["key"] = state["key"]
@@ -513,12 +515,61 @@ def worm_step(
 
     return new_worm_state, None
 
+@jax.jit(static_argnames=['error_model', "max_worm_steps"])
 def run_worm(
     initial_worm_state: Dict,
+    h_error_mod_p: ArrayLike,
+    h_mod_p: ArrayLike,
     error_model: ErrorModelLindbladTwoOddPrime,
     max_worm_steps: int,
 ) -> Dict:
-    pass
+    """ Implements the "split" worm algorithm which is 
+    suited for the Moebius code for qudits and d = 2 * p p odd prime. 
+
+    Args:
+        initial_worm_state (Dict): a dictionary with the following keys:
+            worm_error (ArrayLike): a JAX array with two rows, where the first
+                row is the error mod 2 and the second the error mod p
+            head (int): the label of the current head of the worm
+            tail (int): the label of the tail of the worm (which stays fixed)
+            worm_success (bool): a boolean that marks whether the worm has 
+                succeded or not. If it succeeds, it skips all remaining
+                attempts
+            accepted_moves (int): counter of accepted moves
+            attempted_moves (int): counter of attempted moves
+            key (ArrayLike): the key used for random number generation, 
+                which will be split inside the function
+        h_error_mod_p (ArrayLike): the stabilizers mod p that are used to
+            generate p errors that give no syndrome
+        h_mod_p (ArrayLike): the stabilizers mod p from which the mod p
+            syndrome can be obtained. Note that if h_error_mod_p is 
+            h_z_mod_p, then h_mod_p is h_x_mod_p (and vice versa). The 
+            function is set up so that both cases are handled.
+        error_model (ErrorModelLindbladTwoOddPrime): The error model used
+                to compute the necessary probabilities.
+        max_worm_steps (int): the maximum number of worm steps
+        
+
+    Returns:
+        The new worm_state at the end of the split worm algorithm.
+    """
+    worm_step_partial = partial(
+        worm_step, 
+        h_error_mod_p=h_error_mod_p, 
+        h_mod_p=h_mod_p, 
+        error_model=error_model
+        )
+    new_worm_state = initial_worm_state.copy()
+
+    new_worm_state, _ = jax.lax.scan(
+        worm_step_partial, 
+        initial_worm_state, 
+        jnp.arange(max_worm_steps)
+        )
+    
+    return new_worm_state
+    
+    
     
     
 

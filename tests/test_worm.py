@@ -8,7 +8,8 @@ from coherentinfo.worm import (stab_labels,
                                stabilizer_edges,
                                move_error,
                                single_move_probability,
-                               all_move_probabilities)
+                               all_move_probabilities,
+                               run_worm)
 import jax.numpy as jnp
 import numpy as np
 from typing import Tuple
@@ -225,6 +226,84 @@ def test_all_plaquette_moves_probability(moebius_code_example):
     cond = jnp.all(move_probs[0] == move_probs_test)
     assert cond == True, \
         f"The move probabilities are not correct in example #{idx}"
+    
+
+def test_run_worm_plaquette(moebius_code_example):
+    """Test for an elementary run of the split worm algorithm"""
+
+    num_examples = len(moebius_code_example)
+    idx = np.random.randint(num_examples)
+    moebius_code = moebius_code_example[idx]
+    p = moebius_code.p
+    gamma_t = 0.3
+    em_lindblad = ErrorModelLindbladTwoOddPrime(
+        moebius_code.num_edges, d=moebius_code.d, gamma_t=gamma_t
+    )
+    h_x_mod_2 = moebius_code.h_x_mod_2
+    h_x_mod_p = moebius_code.h_x_mod_p
+    h_z_mod_p = moebius_code.h_z_mod_p
+
+    error_key = jax.random.PRNGKey(np.random.randint(1000))
+    initial_error = em_lindblad.generate_random_error(error_key)
+    initial_error_mod_2 = jnp.mod(initial_error, 2)
+    initial_error_mod_p = jnp.mod(initial_error, p)
+    # Here we consider the full syndrome including the plaquette
+    # we usually remove because of the constraint as this simplified the
+    # coding of the worm algorithm. In fact, in this the syndromes will
+    # always be annihilated in pairs, and the total number of syndromes is
+    # always even as one can check numerically.
+    syndrome = moebius_code.get_plaquette_syndrome(initial_error)
+    syndrome_mod_2 = jnp.mod(syndrome, 2)
+    syndrome_mod_p = jnp.mod(syndrome, p)
+
+    max_steps = 10000
+    base_key = jax.random.PRNGKey(np.random.randint(1000))
+    initial_worm_state = {}
+    initial_worm_state["worm_error"] = jnp.vstack(
+        (initial_error_mod_2, initial_error_mod_p))
+    head = np.random.randint(moebius_code.num_plaquette_checks)
+    initial_worm_state["head"] = head
+    initial_worm_state["tail"] = head
+    initial_worm_state["worm_success"] = False
+    # initial_worm_state["h_error_mod_p"] = h_z_mod_p
+    # initial_worm_state["h_mod_p"] = h_x_mod_p
+    initial_worm_state["accepted_moves"] = 0
+    initial_worm_state["attempted_moves"] = 0
+    initial_worm_state["key"] = base_key
+
+    new_worm_state = run_worm(
+        initial_worm_state,
+        h_z_mod_p,
+        h_x_mod_p,
+        em_lindblad,
+        max_steps
+        )
+    
+    if new_worm_state["worm_success"] == False:
+        pytest.skip()
+
+    new_syndrome_mod_2 = jnp.mod(
+        h_x_mod_2 @ new_worm_state["worm_error"][0, :], 
+        2
+        )
+    
+    cond = jnp.all(jnp.mod(new_syndrome_mod_2 - syndrome_mod_2, 2) == 0)
+    assert cond == True, \
+        "The syndromes mod 2 do not match in example #{idx}"
+    
+    new_syndrome_mod_p = jnp.mod(
+        h_x_mod_p @ new_worm_state["worm_error"][1, :], 
+        p
+        )
+    
+    cond = jnp.all(jnp.mod(new_syndrome_mod_p - syndrome_mod_p, p) == 0)
+    assert cond == True, \
+        "The syndromes mod p do not match in example #{idx}"
+    
+    
+
+
+
 
 
 
