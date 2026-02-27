@@ -259,7 +259,7 @@ def test_run_worm_plaquette(moebius_code_example):
     max_steps = 10000
     base_key = jax.random.PRNGKey(np.random.randint(1000))
     initial_worm_state = {}
-    initial_worm_state["worm_error"] = jnp.vstack(
+    worm_error = jnp.vstack(
         (initial_error_mod_2, initial_error_mod_p))
     head = np.random.randint(moebius_code.num_plaquette_checks)
     initial_worm_state["head"] = head
@@ -269,9 +269,10 @@ def test_run_worm_plaquette(moebius_code_example):
     # initial_worm_state["h_mod_p"] = h_x_mod_p
     initial_worm_state["accepted_moves"] = 0
     initial_worm_state["attempted_moves"] = 0
-    initial_worm_state["key"] = base_key
 
     new_worm_state = run_worm(
+        worm_error,
+        base_key,
         initial_worm_state,
         h_z_mod_p,
         h_x_mod_p,

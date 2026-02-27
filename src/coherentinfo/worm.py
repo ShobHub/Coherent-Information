@@ -517,6 +517,8 @@ def worm_step(
 
 @jax.jit(static_argnames=['error_model', "max_worm_steps"])
 def run_worm(
+    worm_error: ArrayLike,
+    base_key: ArrayLike,
     initial_worm_state: Dict,
     h_error_mod_p: ArrayLike,
     h_mod_p: ArrayLike,
@@ -527,6 +529,8 @@ def run_worm(
     suited for the Moebius code for qudits and d = 2 * p p odd prime. 
 
     Args:
+        worm_error (ArrayLike): a JAX array with two rows, where the first
+                row is the error mod 2 and the second the error mod p
         initial_worm_state (Dict): a dictionary with the following keys:
             worm_error (ArrayLike): a JAX array with two rows, where the first
                 row is the error mod 2 and the second the error mod p
@@ -550,9 +554,18 @@ def run_worm(
         max_worm_steps (int): the maximum number of worm steps
         
 
-    Returns:
-        The new worm_state at the end of the split worm algorithm.
+    Returns (Dict):
+        The new worm_state at the end of the split worm algorithm, as a 
+        dictionary with the same entries of initial_worm_state, as well
+        as:
+            worm_error (ArrayLike): a JAX array with two rows, where the first
+                row is the error mod 2 and the second the error mod p
+            key (ArrayLike): the last key used for random number generation
+
     """
+    initial_worm_state["worm_error"] = worm_error
+    # The base key will be split several times inside the function
+    initial_worm_state["key"] = base_key
     worm_step_partial = partial(
         worm_step, 
         h_error_mod_p=h_error_mod_p, 
