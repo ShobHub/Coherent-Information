@@ -6,6 +6,7 @@ import jax
 from jax import Array
 from jax.typing import ArrayLike
 from coherentinfo.linalg import is_prime
+from coherentinfo.dtypes import INT_DTYPE
 
 from abc import ABC, abstractmethod
 import scipy
@@ -72,7 +73,7 @@ class ErrorModelBernoulli(ErrorModel):
         """
         uniform_error = jax.random.uniform(key, self.num_subsys)
         error = jnp.searchsorted(self.cdf, uniform_error, side='left')
-        return error
+        return error.astype(INT_DTYPE)
     
 class ErrorModelLindblad(ErrorModel):
     """Class for generalized Pauli-Lindblad error model"""
@@ -128,23 +129,23 @@ class ErrorModelLindblad(ErrorModel):
         """
         uniform_error = jax.random.uniform(key, self.num_subsys)
         error = jnp.searchsorted(self.cdf, uniform_error, side='left')
-        return error
+        return error.astype(INT_DTYPE)
 
 class ErrorModelLindbladTwoOddPrime(ErrorModelLindblad):
     """Class for generalized Pauli-Lindblad error model 
     specialized to the case of d = 2 * p with p odd prime"""
 
     def __init__(self, num_subsys: int, d: int, gamma_t: float):
-        cond = is_prime(np.int16(d / 2)) and np.int16(d / 2) != 2
+        cond = is_prime(jnp.int32(d / 2)) and jnp.int32(d / 2) != 2
         if not cond:
             raise ValueError("d must be 2 * p with p odd prime")
         super().__init__(num_subsys, d, gamma_t)
-        self.p = jnp.int16(self.d / 2)
+        self.p = jnp.int32(self.d / 2)
     
     def get_modular_probability(self, m_mod_2: int, m_mod_p: int):
         m_mod_2 = jnp.mod(m_mod_2, 2)
         m_mod_p = jnp.mod(m_mod_p, self.p)
-        m = jnp.int16(self.p * m_mod_2 + (1 - self.p) / 2 * 2 * m_mod_p)        
+        m = jnp.int32(self.p * m_mod_2 + (1 - self.p) / 2 * 2 * m_mod_p)        
         prob = self.probs[m]
         return prob
 
@@ -190,7 +191,7 @@ class ErrorModelPoisson(ErrorModel):
         """
         uniform_error = jax.random.uniform(key, self.num_subsys)
         error = jnp.searchsorted(self.cdf, uniform_error, side='left')
-        return error
+        return error.astype(INT_DTYPE)
 
 
     
