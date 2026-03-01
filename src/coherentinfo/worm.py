@@ -5,6 +5,7 @@ from jax.typing import ArrayLike
 import jax.numpy as jnp
 from typing import Tuple, Dict, Callable
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
+from coherentinfo.dtypes import INT_DTYPE
 import jax
 from functools import partial
 
@@ -344,12 +345,6 @@ def worm_step(
         keeping track of the state during the scan.
     """
 
-    # We unpack the elements of the dictionary 
-
-    # error_model = worm_settings["error_model"]
-    # h_error_mod_p = worm_settings["h_error_mod_p"]
-    # h_mod_p = worm_settings["h_mod_p"]
-
     def do_not_attempt_step(worm_state):
         return worm_state
 
@@ -436,7 +431,7 @@ def worm_step(
             new_worm_error_mod_p = jnp.mod(
                 proposed_move[1, :] + worm_error[1, :], p)
             new_worm_error = jnp.vstack(
-                (new_worm_error_mod_2, new_worm_error_mod_p))
+                (new_worm_error_mod_2, new_worm_error_mod_p), dtype=INT_DTYPE)
             # We now update the new parameters
             new_state = {}
             new_state["worm_error"] = new_worm_error

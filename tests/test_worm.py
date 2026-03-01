@@ -2,7 +2,6 @@
 # algorithm
 
 import pytest
-from coherentinfo.moebius_two_odd_prime import MoebiusCodeTwoOddPrime
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
 from coherentinfo.worm import (stab_labels, 
                                stabilizer_edges,
@@ -14,8 +13,8 @@ import jax.numpy as jnp
 import numpy as np
 from typing import Tuple
 from jax.typing import ArrayLike
-from test_moebius import moebius_code_example
 import jax
+from coherentinfo.dtypes import INT_DTYPE
 
 
 def test_stab_labels(moebius_code_example) -> None:
@@ -259,8 +258,9 @@ def test_run_worm_plaquette(moebius_code_example):
     max_steps = 10000
     base_key = jax.random.PRNGKey(np.random.randint(1000))
     initial_worm_state = {}
+    # Note specifying INT_DTYPE here is important because it 
     worm_error = jnp.vstack(
-        (initial_error_mod_2, initial_error_mod_p))
+        (initial_error_mod_2, initial_error_mod_p), dtype=INT_DTYPE)
     head = np.random.randint(moebius_code.num_plaquette_checks)
     initial_worm_state["head"] = head
     initial_worm_state["tail"] = head
@@ -278,7 +278,7 @@ def test_run_worm_plaquette(moebius_code_example):
         h_x_mod_p,
         em_lindblad,
         max_steps
-        )
+    )
     
     if new_worm_state["worm_success"] == False:
         pytest.skip()
@@ -286,8 +286,8 @@ def test_run_worm_plaquette(moebius_code_example):
     new_syndrome_mod_2 = jnp.mod(
         h_x_mod_2 @ new_worm_state["worm_error"][0, :], 
         2
-        )
-    
+    )
+
     cond = jnp.all(jnp.mod(new_syndrome_mod_2 - syndrome_mod_2, 2) == 0)
     assert cond == True, \
         "The syndromes mod 2 do not match in example #{idx}"
@@ -295,7 +295,7 @@ def test_run_worm_plaquette(moebius_code_example):
     new_syndrome_mod_p = jnp.mod(
         h_x_mod_p @ new_worm_state["worm_error"][1, :], 
         p
-        )
+    )
     
     cond = jnp.all(jnp.mod(new_syndrome_mod_p - syndrome_mod_p, p) == 0)
     assert cond == True, \
