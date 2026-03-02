@@ -478,7 +478,6 @@ def worm_step(
 
         # The acceptance condition
         accept_condition = acceptance_random_number <= acceptance_prob
-        # jax.debug.print("jax.debug.print(x) -> {x}", x=acceptance_prob)
 
         accept_condition = accept_condition
 
@@ -510,7 +509,7 @@ def worm_step(
 
     return new_worm_state, None
 
-@jax.jit(static_argnames=['error_model', "max_worm_steps"])
+# @jax.jit(static_argnames=['error_model', "max_worm_steps"])
 def run_worm(
     worm_error: ArrayLike,
     base_key: ArrayLike,
@@ -576,6 +575,15 @@ def run_worm(
         )
     
     return new_worm_state
+
+def worm_logical_conditional_entropy(
+    length: int,
+    width: int,
+    p: int,
+    gamma: float,
+    syndrome_label: str
+):
+    pass
     
     
     
