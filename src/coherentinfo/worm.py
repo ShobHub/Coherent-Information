@@ -1,12 +1,19 @@
 # Module with functions for the implementation of the worm algorithm
 # for qudits with d = 2 * p and p odd prime
 
-from jax.typing import ArrayLike
-import jax.numpy as jnp
+
 from typing import Tuple, Dict, Callable
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
+from coherentinfo.moebius_two_odd_prime import MoebiusCodeTwoOddPrime
 from coherentinfo.dtypes import INT_DTYPE
+import os
 import jax
+N_CPUS = os.cpu_count()
+N_USED_CPUS = N_CPUS
+jax.config.update('jax_num_cpu_devices', N_USED_CPUS)
+from jax.sharding import Mesh, PartitionSpec, NamedSharding
+from jax.typing import ArrayLike
+import jax.numpy as jnp
 from functools import partial
 
 
@@ -517,6 +524,7 @@ def run_worm(
     h_error_mod_p: ArrayLike,
     h_mod_p: ArrayLike,
     error_model: ErrorModelLindbladTwoOddPrime,
+    compute_full_chi: Callable,
     num_stabs: int,
     max_worm_steps: int,
 ) -> Dict:
@@ -546,6 +554,9 @@ def run_worm(
             function is set up so that both cases are handled.
         error_model (ErrorModelLindbladTwoOddPrime): The error model used
                 to compute the necessary probabilities.
+        compute_chi (Callable): a function that computes the full logical bit
+            i.e., it is equal to 0 if the logical bit is 0 and p if the 
+            logical bit is p
         num_stab (int): an integer that is the number of rows in 
             h_mod_p, which is needs to be explicitly passed for JAX 
             compatibility
@@ -562,6 +573,8 @@ def run_worm(
 
     """
     initial_worm_state["worm_error"] = worm_error
+    p = error_model.p
+    d = error_model.d
     # The base key will be split several times inside the function
     base_key, subkey = jax.random.split(base_key)
     initial_head = jax.random.randint(subkey, 1, 0, num_stabs)[0]
@@ -582,16 +595,155 @@ def run_worm(
         jnp.arange(max_worm_steps)
         )
     
+    worm_error_mod_2 = new_worm_state["worm_error"][0, :]
+    worm_error_mod_p = new_worm_state["worm_error"][1, :]
+    # The following converts from mod 2 and mod p to mod 2 * p
+    full_worm_error = jnp.mod(
+        p * worm_error_mod_2 + (1 - p) * worm_error_mod_p, 
+        d
+    )
+    new_worm_state["full_chi"] = compute_full_chi(full_worm_error)[-1]
+    new_worm_state["chi"] = jax.lax.cond(
+        new_worm_state["full_chi"] == p,
+        lambda: 1, 
+        lambda: 0
+    )
+    
     return new_worm_state
 
 def worm_logical_conditional_entropy(
-    length: int,
-    width: int,
-    p: int,
-    gamma: float,
-    syndrome_label: str
+    syndrome_id: str, 
+    moebius_setup: Dict,
+    worm_setup : Dict, 
+    gamma_t: ArrayLike,
 ):
-    pass
+    length = moebius_setup["length"]
+    width = moebius_setup["length"]
+    p = moebius_setup["p"]
+    num_samples = worm_setup["num_samples"]
+    num_worms = worm_setup["num_worms"]
+    max_worm_steps = worm_setup["max_worm_steps"]
+    worm_master_seed = worm_setup["worm_master_seed"]
+    error_master_seed = worm_setup["error_master_seed"]
+
+    
+    d = 2 * p
+    moebius_code = MoebiusCodeTwoOddPrime(length=length, width=width, d=d)
+    # h_z = moebius_code.h_z
+    # h_x = moebius_code.h_x
+    # h_z_mod_2 = moebius_code.h_z_mod_2
+    # h_z_mod_p = moebius_code.h_z_mod_p
+    # h_x_mod_2 = moebius_code.h_x_mod_2
+    # h_x_mod_p = moebius_code.h_x_mod_p
+    # logical_x = moebius_code.logical_x
+    # logical_z = moebius_code.logical_z
+    # num_plaquette, num_edges = h_x.shape
+    em_lindblad = ErrorModelLindbladTwoOddPrime(
+        moebius_code.num_edges, d=d, gamma_t=gamma_t
+    )
+
+    # def setup_plaquette():
+    #     return (
+    #         moebius_code.num_plaquette_checks,
+    #         moebius_code.h_z_mod_p,
+    #         moebius_code.h_x_mod_p,
+    #         moebius_code.compute_plaquette_syndrome_chi_x
+    #     )
+    
+    # def setup_vertex():
+    #     return (
+    #         moebius_code.num_vertex_checks,
+    #         moebius_code.h_x_mod_p,
+    #         moebius_code.h_z_mod_p,
+    #         moebius_code.compute_vertex_syndrome_chi_z
+    #     )
+
+    # num_stabs, h_error_mod_p, h_mod_p, compute_chi = jax.lax.cond(
+    #     syndrome_id == "plaquette",
+    #     setup_plaquette,
+    #     setup_vertex
+    # )
+
+    # select the method with plain Python
+    if syndrome_id == "plaquette":
+        num_stabs, h_error_mod_p, h_mod_p = (
+            moebius_code.num_plaquette_checks,
+            moebius_code.h_z_mod_p,
+            moebius_code.h_x_mod_p,
+        )
+        compute_chi = moebius_code.compute_plaquette_syndrome_chi_x
+    elif syndrome_id == 'vertex':
+        num_stabs, h_error_mod_p, h_mod_p = (
+            moebius_code.num_vertex_checks,
+            moebius_code.h_x_mod_p,
+            moebius_code.h_z_mod_p,
+        )
+        compute_chi = moebius_code.compute_vertex_syndrome_chi_z
+    else:
+        raise ValueError("The syndrome id must be either plaquette or vertex")
+
+    master_worm_key = jax.random.PRNGKey(worm_master_seed)
+
+    worm_keys = jax.random.split(
+        master_worm_key, num=num_samples * num_worms).reshape(num_samples, num_worms, 2)
+
+    error_master_key = jax.random.PRNGKey(error_master_seed)
+    error_keys = jax.random.split(error_master_key, num_samples)
+
+
+    def generate_initial_worm_errors(
+        key: ArrayLike,
+        error_model: ErrorModelLindbladTwoOddPrime
+    ) -> ArrayLike:
+        initial_error = error_model.generate_random_error(key)
+        initial_error_mod_2 = jnp.mod(initial_error, 2)
+        initial_error_mod_p = jnp.mod(initial_error, p)
+        initial_worm_error = jnp.vstack((initial_error_mod_2, initial_error_mod_p))
+        return initial_worm_error
+
+
+    initial_worm_errors = jax.vmap(
+        generate_initial_worm_errors, in_axes=(0, None))(error_keys, em_lindblad)
+    
+    # Sharding the arrays
+    devices = jax.devices()  # Assuming this returns 16 devices
+    mesh = Mesh(devices, ('batch',))
+
+    # sharding_for_keys = NamedSharding(mesh,  PartitionSpec('batch', None))
+    # worm_keys_sharded = jax.device_put(worm_keys, sharding_for_keys)
+
+    # 2. Define sharding: Split the 0th axis across 'batch', leave others whole
+    sharding_for_error = NamedSharding(mesh,  PartitionSpec('batch', None, None))
+    initial_worm_errors_sharded = jax.device_put(
+        initial_worm_errors, sharding_for_error)
+    
+    initial_worm_state = {}
+    # worm_error = jnp.vstack(
+    #     (initial_error_mod_2, initial_error_mod_p))
+    initial_worm_state["worm_success"] = False
+    initial_worm_state["accepted_moves"] = 0
+    initial_worm_state["attempted_moves"] = 0
+
+    run_worm_partial = partial(
+        run_worm,
+        initial_worm_state=initial_worm_state,
+        h_error_mod_p=h_error_mod_p,
+        h_mod_p=h_mod_p,
+        error_model=em_lindblad,
+        compute_full_chi=compute_chi,
+        num_stabs=num_stabs,
+        max_worm_steps=max_worm_steps
+    )
+
+    # First over keys
+    run_worm_vmap = jax.vmap(run_worm_partial, in_axes=(None, 0))
+    # Then over initial errors
+    run_worm_vmap = jax.vmap(run_worm_vmap, in_axes=(0, 0))
+    run_worm_jit = jax.jit(run_worm_vmap)
+    new_worm_state = run_worm_jit(initial_worm_errors_sharded, worm_keys)
+
+    return new_worm_state
+
     
     
     
