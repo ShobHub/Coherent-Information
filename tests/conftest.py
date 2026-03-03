@@ -32,9 +32,13 @@ def moebius_code_example() -> List[Tuple[ArrayLike, ArrayLike]]:
     moebius_code_4 = MoebiusCodeTwoOddPrime(length=5, width=45, d=2 * 107)
     examples.append((moebius_code_4))
 
-    # Example 5: length=5, width=45
+    # Example 5: length=7, width=5
     moebius_code_5 = MoebiusCodeTwoOddPrime(length=7, width=5, d=2 * 3)
     examples.append((moebius_code_5))
+
+    # Example 6: length=5, width=5
+    moebius_code_6 = MoebiusCodeTwoOddPrime(length=5, width=5, d=2 * 3)
+    examples.append((moebius_code_6))
 
     return examples
 

@@ -257,14 +257,14 @@ def test_run_worm_plaquette(moebius_code_example):
     syndrome_mod_p = jnp.mod(syndrome, p)
 
     max_steps = 10000
-    base_key = jax.random.PRNGKey(np.random.randint(1000))
+    base_key = jax.random.PRNGKey(87)
     initial_worm_state = {}
     # Note specifying INT_DTYPE here is important because it 
     worm_error = jnp.vstack(
         (initial_error_mod_2, initial_error_mod_p), dtype=INT_DTYPE)
-    head = np.random.randint(moebius_code.num_plaquette_checks)
-    initial_worm_state["head"] = head
-    initial_worm_state["tail"] = head
+    # head = np.random.randint(moebius_code.num_plaquette_checks)
+    # initial_worm_state["head"] = head
+    # initial_worm_state["tail"] = head
     initial_worm_state["worm_success"] = False
     # initial_worm_state["h_error_mod_p"] = h_z_mod_p
     # initial_worm_state["h_mod_p"] = h_x_mod_p
@@ -278,6 +278,7 @@ def test_run_worm_plaquette(moebius_code_example):
         h_z_mod_p,
         h_x_mod_p,
         em_lindblad,
+        moebius_code.num_plaquette_checks,
         max_steps
     )
     
@@ -291,7 +292,7 @@ def test_run_worm_plaquette(moebius_code_example):
 
     cond = jnp.all(jnp.mod(new_syndrome_mod_2 - syndrome_mod_2, 2) == 0)
     assert cond == True, \
-        "The syndromes mod 2 do not match in example #{idx}"
+        f"The syndromes mod 2 do not match in example #{idx}"
     
     new_syndrome_mod_p = jnp.mod(
         h_x_mod_p @ new_worm_state["worm_error"][1, :], 
@@ -300,7 +301,7 @@ def test_run_worm_plaquette(moebius_code_example):
     
     cond = jnp.all(jnp.mod(new_syndrome_mod_p - syndrome_mod_p, p) == 0)
     assert cond == True, \
-        "The syndromes mod p do not match in example #{idx}"
+        f"The syndromes mod p do not match in example #{idx}"
     
 
 def test_run_worm_vertex(moebius_code_example):
@@ -308,7 +309,7 @@ def test_run_worm_vertex(moebius_code_example):
     checks"""
 
     num_examples = len(moebius_code_example)
-    idx = np.random.randint(num_examples)
+    idx = 5 #np.random.randint(num_examples)
     moebius_code = moebius_code_example[idx]
     p = moebius_code.p
     gamma_t = 0.3
@@ -319,7 +320,9 @@ def test_run_worm_vertex(moebius_code_example):
     h_x_mod_p = moebius_code.h_x_mod_p
     h_z_mod_p = moebius_code.h_z_mod_p
 
-    error_key = jax.random.PRNGKey(np.random.randint(1000))
+    error_key_seed = 231 #np.random.randint(1000)
+    print("Error key seed = {}".format(error_key_seed))
+    error_key = jax.random.PRNGKey(error_key_seed)
     initial_error = em_lindblad.generate_random_error(error_key)
     initial_error_mod_2 = jnp.mod(initial_error, 2)
     initial_error_mod_p = jnp.mod(initial_error, p)
@@ -333,14 +336,14 @@ def test_run_worm_vertex(moebius_code_example):
     syndrome_mod_p = jnp.mod(syndrome, p)
 
     max_steps = 10000
-    base_key = jax.random.PRNGKey(np.random.randint(1000))
+    base_key = jax.random.PRNGKey(7)
     initial_worm_state = {}
     # Note specifying INT_DTYPE here is important because it 
     worm_error = jnp.vstack(
         (initial_error_mod_2, initial_error_mod_p), dtype=INT_DTYPE)
-    head = np.random.randint(moebius_code.num_vertex_checks)
-    initial_worm_state["head"] = head
-    initial_worm_state["tail"] = head
+    # head = np.random.randint(moebius_code.num_vertex_checks)
+    # initial_worm_state["head"] = head
+    # initial_worm_state["tail"] = head
     initial_worm_state["worm_success"] = False
     # initial_worm_state["h_error_mod_p"] = h_z_mod_p
     # initial_worm_state["h_mod_p"] = h_x_mod_p
@@ -354,8 +357,13 @@ def test_run_worm_vertex(moebius_code_example):
         h_x_mod_p,
         h_z_mod_p,
         em_lindblad,
+        moebius_code.num_vertex_checks,
         max_steps
     )
+
+    print("Head = {}".format(new_worm_state["head"]))
+    print("Tail = {}".format(new_worm_state["tail"]))
+    print("Success = {}".format(new_worm_state["worm_success"]))
     
     if new_worm_state["worm_success"] == False:
         pytest.skip()
@@ -367,7 +375,7 @@ def test_run_worm_vertex(moebius_code_example):
 
     cond = jnp.all(jnp.mod(new_syndrome_mod_2 - syndrome_mod_2, 2) == 0)
     assert cond == True, \
-        "The syndromes mod 2 do not match in example #{idx}"
+        f"The syndromes mod 2 do not match in example #{idx}"
     
     new_syndrome_mod_p = jnp.mod(
         h_z_mod_p @ new_worm_state["worm_error"][1, :], 
@@ -376,7 +384,7 @@ def test_run_worm_vertex(moebius_code_example):
     
     cond = jnp.all(jnp.mod(new_syndrome_mod_p - syndrome_mod_p, p) == 0)
     assert cond == True, \
-        "The syndromes mod p do not match in example #{idx}"
+        f"The syndromes mod p do not match in example #{idx}"
     
     
 

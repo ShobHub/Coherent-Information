@@ -517,6 +517,7 @@ def run_worm(
     h_error_mod_p: ArrayLike,
     h_mod_p: ArrayLike,
     error_model: ErrorModelLindbladTwoOddPrime,
+    num_stabs: int,
     max_worm_steps: int,
 ) -> Dict:
     """ Implements the "split" worm algorithm which is 
@@ -545,6 +546,9 @@ def run_worm(
             function is set up so that both cases are handled.
         error_model (ErrorModelLindbladTwoOddPrime): The error model used
                 to compute the necessary probabilities.
+        num_stab (int): an integer that is the number of rows in 
+            h_mod_p, which is needs to be explicitly passed for JAX 
+            compatibility
         max_worm_steps (int): the maximum number of worm steps
         
 
@@ -559,6 +563,10 @@ def run_worm(
     """
     initial_worm_state["worm_error"] = worm_error
     # The base key will be split several times inside the function
+    base_key, subkey = jax.random.split(base_key)
+    initial_head = jax.random.randint(subkey, 1, 0, num_stabs)[0]
+    initial_worm_state["head"] = initial_head
+    initial_worm_state["tail"] = initial_head
     initial_worm_state["key"] = base_key
     worm_step_partial = partial(
         worm_step, 
