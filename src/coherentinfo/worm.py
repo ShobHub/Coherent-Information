@@ -611,12 +611,12 @@ def run_worm(
     
     return new_worm_state
 
-def worm_logical_conditional_entropy(
+def run_worm_moebius(
     syndrome_id: str, 
     moebius_setup: Dict,
     worm_setup : Dict, 
     gamma_t: ArrayLike,
-):
+) -> Dict:
     length = moebius_setup["length"]
     width = moebius_setup["length"]
     p = moebius_setup["p"]
@@ -629,42 +629,10 @@ def worm_logical_conditional_entropy(
     
     d = 2 * p
     moebius_code = MoebiusCodeTwoOddPrime(length=length, width=width, d=d)
-    # h_z = moebius_code.h_z
-    # h_x = moebius_code.h_x
-    # h_z_mod_2 = moebius_code.h_z_mod_2
-    # h_z_mod_p = moebius_code.h_z_mod_p
-    # h_x_mod_2 = moebius_code.h_x_mod_2
-    # h_x_mod_p = moebius_code.h_x_mod_p
-    # logical_x = moebius_code.logical_x
-    # logical_z = moebius_code.logical_z
-    # num_plaquette, num_edges = h_x.shape
     em_lindblad = ErrorModelLindbladTwoOddPrime(
         moebius_code.num_edges, d=d, gamma_t=gamma_t
     )
 
-    # def setup_plaquette():
-    #     return (
-    #         moebius_code.num_plaquette_checks,
-    #         moebius_code.h_z_mod_p,
-    #         moebius_code.h_x_mod_p,
-    #         moebius_code.compute_plaquette_syndrome_chi_x
-    #     )
-    
-    # def setup_vertex():
-    #     return (
-    #         moebius_code.num_vertex_checks,
-    #         moebius_code.h_x_mod_p,
-    #         moebius_code.h_z_mod_p,
-    #         moebius_code.compute_vertex_syndrome_chi_z
-    #     )
-
-    # num_stabs, h_error_mod_p, h_mod_p, compute_chi = jax.lax.cond(
-    #     syndrome_id == "plaquette",
-    #     setup_plaquette,
-    #     setup_vertex
-    # )
-
-    # select the method with plain Python
     if syndrome_id == "plaquette":
         num_stabs, h_error_mod_p, h_mod_p = (
             moebius_code.num_plaquette_checks,
@@ -743,6 +711,22 @@ def worm_logical_conditional_entropy(
     new_worm_state = run_worm_jit(initial_worm_errors_sharded, worm_keys)
 
     return new_worm_state
+
+def worm_conditional_entropy(
+    syndrome_id: str, 
+    moebius_setup: Dict,
+    worm_setup : Dict, 
+    gamma_t: ArrayLike,
+)-> float:
+    
+    new_worm_state = run_worm_moebius(
+        syndrome_id=syndrome_id,
+        moebius_setup=moebius_setup,
+        worm_setup=worm_setup,
+        gamma_t=gamma_t
+    )
+    
+
 
     
     
