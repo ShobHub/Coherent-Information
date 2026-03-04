@@ -713,11 +713,11 @@ def run_worm_moebius(
     return new_worm_state
 
 def worm_conditional_entropy(
+    gamma_t: ArrayLike,
     syndrome_id: str, 
     moebius_setup: Dict,
     worm_setup : Dict, 
-    gamma_t: ArrayLike,
-)-> float:
+)-> ArrayLike:
     
     new_worm_state = run_worm_moebius(
         syndrome_id=syndrome_id,
@@ -725,7 +725,25 @@ def worm_conditional_entropy(
         worm_setup=worm_setup,
         gamma_t=gamma_t
     )
+
+    def get_binary_entropy(chi_vec, success_vec):
+        # Number of successful worms
+        num_success = jnp.sum(success_vec)
+        # Sets simply to zero failed attempts so that they are not counted
+        chi_vec_marked = jnp.where(success_vec, chi_vec, 0)
+        p1 = jnp.mean(chi_vec_marked) / num_success
+        p0 = 1 - p1
+        binary_entropy = -jax.scipy.special.xlogy(p0, p0) / jnp.log(2)
+        binary_entropy += -jax.scipy.special.xlogy(p1, p1) / jnp.log(2)
+        return binary_entropy
+
+
+    binary_entropies = jax.vmap(get_binary_entropy)(new_worm_state["chi"], new_worm_state["worm_success"])
+    cond_entropy = jnp.mean(binary_entropies)
+    return cond_entropy
     
+
+
 
 
     
