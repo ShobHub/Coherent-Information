@@ -449,15 +449,15 @@ def worm_step(
             # new_head will be -1
             incident_stab = stab_labels(edge, h_mod_p)
             # jax.debug.print("jax.debug.print(x) -> {x}", x=incident_stab)
-            jax.debug.print("Head {x}", x=head)
+            # jax.debug.print("Head {x}", x=head)
             tmp_head = jax.lax.cond(
                 incident_stab[0] == head, 
                 lambda x: x[1], 
                 lambda x: x[0], 
                 incident_stab
                 )
-            jax.debug.print("New head {x}", x=tmp_head)
-            jax.debug.print("Incident stab {x}", x=incident_stab)
+            # jax.debug.print("New head {x}", x=tmp_head)
+            # jax.debug.print("Incident stab {x}", x=incident_stab)
 
             # We note that in the current implementation, if the worm hits 
             # a boundary during its path, it is forced to end at a boundary. 
