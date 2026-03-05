@@ -450,29 +450,48 @@ def worm_step(
             incident_stab = stab_labels(edge, h_mod_p)
             # jax.debug.print("jax.debug.print(x) -> {x}", x=incident_stab)
             jax.debug.print("Head {x}", x=head)
-            new_head = jax.lax.cond(
+            tmp_head = jax.lax.cond(
                 incident_stab[0] == head, 
                 lambda x: x[1], 
                 lambda x: x[0], 
                 incident_stab
                 )
-            jax.debug.print("New head {x}", x=new_head)
+            jax.debug.print("New head {x}", x=tmp_head)
             jax.debug.print("Incident stab {x}", x=incident_stab)
-            new_state["head"] = new_head
-            new_state["tail"] = state["tail"]
-            # This was the previous version, but it is not necessary to
-            # assume the condition state["accepted_moves"] == 0, since you are
-            # already inside the accept function and the head will change
-            # new_state["continue_worm"] = jnp.logical_or(
-            #     new_head != tail, state["accepted_moves"] == 0
-            #     )
-            # The worm succedes, i.e., if either the new head hits the tail
-            # or the new_head hits a boundary, in which case it is set to -1
-            # as discussed above
+
+            # We note that in the current implementation, if the worm hits 
+            # a boundary during its path, it is forced to end at a boundary. 
+            # Whether the boundary was hit or not is marked by 
+            # state["boundary"]. This is obviously only important for 
+            # vertex checks. Thus, the worm is successful if either we never 
+            # found a boundary and we hit the tail again, or we found a 
+            # boundary before and we find a boundary again, which we find out 
+            # if the temporary head tmp_head ends up being -1
             new_state["worm_success"] = jnp.logical_or(
-                new_head == tail,
-                new_head == -1
+                jnp.logical_and(tmp_head == tail, state["boundary"] == False),
+                jnp.logical_and(tmp_head == -1, state["boundary"] == True)
             )
+
+            # Now if we hit a boundary for the first time, the head is 
+            # set back to tail. 
+            set_head_to_tail = jnp.logical_and(
+                tmp_head == -1, 
+                state["boundary"] == False
+            )
+            # Notice that the second time you hit a boundary the head 
+            # should end up being -1
+            new_state["head"] = jax.lax.cond(
+                set_head_to_tail, 
+                lambda: state["tail"], 
+                lambda: tmp_head
+            )
+            # In addition, we mark whether we hit a boundary or not.
+            # If we hit it before it stays True of course
+            new_state["boundary"] = jnp.logical_or(
+                tmp_head == -1, 
+                state["boundary"]
+            )
+            new_state["tail"] = state["tail"]
             new_state["accepted_moves"] = state["accepted_moves"] + 1
             new_state["attempted_moves"] = state["attempted_moves"] + 1
             new_state["key"] = state["key"]
@@ -522,7 +541,6 @@ def worm_step(
 def run_worm(
     worm_error: ArrayLike,
     base_key: ArrayLike,
-    initial_worm_state: Dict,
     h_error_mod_p: ArrayLike,
     h_mod_p: ArrayLike,
     error_model: ErrorModelLindbladTwoOddPrime,
@@ -536,18 +554,6 @@ def run_worm(
     Args:
         worm_error (ArrayLike): a JAX array with two rows, where the first
                 row is the error mod 2 and the second the error mod p
-        initial_worm_state (Dict): a dictionary with the following keys:
-            worm_error (ArrayLike): a JAX array with two rows, where the first
-                row is the error mod 2 and the second the error mod p
-            head (int): the label of the current head of the worm
-            tail (int): the label of the tail of the worm (which stays fixed)
-            worm_success (bool): a boolean that marks whether the worm has 
-                succeded or not. If it succeeds, it skips all remaining
-                attempts
-            accepted_moves (int): counter of accepted moves
-            attempted_moves (int): counter of attempted moves
-            key (ArrayLike): the key used for random number generation, 
-                which will be split inside the function
         h_error_mod_p (ArrayLike): the stabilizers mod p that are used to
             generate p errors that give no syndrome
         h_mod_p (ArrayLike): the stabilizers mod p from which the mod p
@@ -574,12 +580,19 @@ def run_worm(
             key (ArrayLike): the last key used for random number generation
 
     """
+    initial_worm_state = {}
     initial_worm_state["worm_error"] = worm_error
     p = error_model.p
     d = error_model.d
     # The base key will be split several times inside the function
     base_key, subkey = jax.random.split(base_key)
     initial_head = jax.random.randint(subkey, 1, 0, num_stabs)[0]
+    initial_worm_state["boundary"] = False
+    initial_worm_state["worm_success"] = False
+    # initial_worm_state["h_error_mod_p"] = h_z_mod_p
+    # initial_worm_state["h_mod_p"] = h_x_mod_p
+    initial_worm_state["accepted_moves"] = 0
+    initial_worm_state["attempted_moves"] = 0
     initial_worm_state["head"] = initial_head
     initial_worm_state["tail"] = initial_head
     initial_worm_state["key"] = base_key
@@ -690,13 +703,18 @@ def run_worm_moebius(
     initial_worm_state = {}
     # worm_error = jnp.vstack(
     #     (initial_error_mod_2, initial_error_mod_p))
-    initial_worm_state["worm_success"] = False
-    initial_worm_state["accepted_moves"] = 0
-    initial_worm_state["attempted_moves"] = 0
+    # initial_worm_state["worm_success"] = False
+    # # The plan is to use this as a marker when we hit a boundary
+    # # which is important only for vertex checks for the Moebius Code.
+    # # Essentially this is turn to True whenever we hit a boundary edge and at 
+    # # that point the head is set again to tail and the success condition becomes
+    # # finding another (or the same) boundary.
+    # initial_worm_state["boundary"] = False
+    # initial_worm_state["accepted_moves"] = 0
+    # initial_worm_state["attempted_moves"] = 0
 
     run_worm_partial = partial(
         run_worm,
-        initial_worm_state=initial_worm_state,
         h_error_mod_p=h_error_mod_p,
         h_mod_p=h_mod_p,
         error_model=em_lindblad,

@@ -265,16 +265,16 @@ def test_run_worm_plaquette(moebius_code_example):
     # head = np.random.randint(moebius_code.num_plaquette_checks)
     # initial_worm_state["head"] = head
     # initial_worm_state["tail"] = head
-    initial_worm_state["worm_success"] = False
-    # initial_worm_state["h_error_mod_p"] = h_z_mod_p
-    # initial_worm_state["h_mod_p"] = h_x_mod_p
-    initial_worm_state["accepted_moves"] = 0
-    initial_worm_state["attempted_moves"] = 0
+    # initial_worm_state["boundary"] = False
+    # initial_worm_state["worm_success"] = False
+    # # initial_worm_state["h_error_mod_p"] = h_z_mod_p
+    # # initial_worm_state["h_mod_p"] = h_x_mod_p
+    # initial_worm_state["accepted_moves"] = 0
+    # initial_worm_state["attempted_moves"] = 0
 
     new_worm_state = run_worm(
         worm_error,
         base_key,
-        initial_worm_state,
         h_z_mod_p,
         h_x_mod_p,
         em_lindblad,
@@ -310,7 +310,7 @@ def test_run_worm_vertex(moebius_code_example):
     checks"""
 
     num_examples = len(moebius_code_example)
-    idx = 5 #np.random.randint(num_examples)
+    idx = np.random.randint(num_examples)
     moebius_code = moebius_code_example[idx]
     p = moebius_code.p
     gamma_t = 0.3
@@ -321,8 +321,8 @@ def test_run_worm_vertex(moebius_code_example):
     h_x_mod_p = moebius_code.h_x_mod_p
     h_z_mod_p = moebius_code.h_z_mod_p
 
-    error_key_seed = 231 #np.random.randint(1000)
-    print("Error key seed = {}".format(error_key_seed))
+    error_key_seed = np.random.randint(1000) # 231
+    # print("Error key seed = {}".format(error_key_seed))
     error_key = jax.random.PRNGKey(error_key_seed)
     initial_error = em_lindblad.generate_random_error(error_key)
     initial_error_mod_2 = jnp.mod(initial_error, 2)
@@ -345,6 +345,7 @@ def test_run_worm_vertex(moebius_code_example):
     # head = np.random.randint(moebius_code.num_vertex_checks)
     # initial_worm_state["head"] = head
     # initial_worm_state["tail"] = head
+    initial_worm_state["boundary"] = False
     initial_worm_state["worm_success"] = False
     # initial_worm_state["h_error_mod_p"] = h_z_mod_p
     # initial_worm_state["h_mod_p"] = h_x_mod_p
@@ -354,7 +355,6 @@ def test_run_worm_vertex(moebius_code_example):
     new_worm_state = run_worm(
         worm_error,
         base_key,
-        initial_worm_state,
         h_x_mod_p,
         h_z_mod_p,
         em_lindblad,
