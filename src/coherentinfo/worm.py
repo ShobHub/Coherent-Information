@@ -430,7 +430,7 @@ def worm_step(
             edge = state["edge"]
             power = state["power"]
             stab_bool = state["stab_bool"]
-            # Only now we compute the probposed move and the new worm
+            # Only now we compute the proposed move and the new worm
             proposed_move = move_error(
                 edge, power, stab_bool, h_error_mod_p, p)
             new_worm_error_mod_2 = jnp.mod(
@@ -449,13 +449,15 @@ def worm_step(
             # new_head will be -1
             incident_stab = stab_labels(edge, h_mod_p)
             # jax.debug.print("jax.debug.print(x) -> {x}", x=incident_stab)
+            jax.debug.print("Head {x}", x=head)
             new_head = jax.lax.cond(
                 incident_stab[0] == head, 
                 lambda x: x[1], 
                 lambda x: x[0], 
                 incident_stab
                 )
-
+            jax.debug.print("New head {x}", x=new_head)
+            jax.debug.print("Incident stab {x}", x=incident_stab)
             new_state["head"] = new_head
             new_state["tail"] = state["tail"]
             # This was the previous version, but it is not necessary to

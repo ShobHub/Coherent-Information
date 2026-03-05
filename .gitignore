@@ -5,3 +5,4 @@ tests/__pycache__/*
 
 tests/__pycache__/test_moebius.cpython-312-pytest-8.4.2.pyc
 src/coherentinfo/__pycache__/errormodel.cpython-312.pyc
+notebooks/debug_vertex_check.py

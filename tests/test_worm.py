@@ -278,6 +278,7 @@ def test_run_worm_plaquette(moebius_code_example):
         h_z_mod_p,
         h_x_mod_p,
         em_lindblad,
+        moebius_code.compute_plaquette_syndrome_chi_x,
         moebius_code.num_plaquette_checks,
         max_steps
     )
@@ -357,6 +358,7 @@ def test_run_worm_vertex(moebius_code_example):
         h_x_mod_p,
         h_z_mod_p,
         em_lindblad,
+        moebius_code.compute_vertex_syndrome_chi_z,
         moebius_code.num_vertex_checks,
         max_steps
     )
