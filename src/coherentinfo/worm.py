@@ -430,13 +430,18 @@ def worm_step(
             edge = state["edge"]
             power = state["power"]
             stab_bool = state["stab_bool"]
+            num_stabs = state["num_stabs"]
+            burn_in_steps = state["burn_in_steps"]
             # Only now we compute the proposed move and the new worm
             proposed_move = move_error(
-                edge, power, stab_bool, h_error_mod_p, p)
+                edge, power, stab_bool, h_error_mod_p, p
+            )
             new_worm_error_mod_2 = jnp.mod(
-                proposed_move[0, :] + worm_error[0, :], 2)
+                proposed_move[0, :] + worm_error[0, :], 2
+            )
             new_worm_error_mod_p = jnp.mod(
-                proposed_move[1, :] + worm_error[1, :], p)
+                proposed_move[1, :] + worm_error[1, :], p
+            )
             new_worm_error = jnp.vstack(
                 (new_worm_error_mod_2, new_worm_error_mod_p), dtype=INT_DTYPE)
             # We now update the new parameters
@@ -467,10 +472,26 @@ def worm_step(
             # found a boundary and we hit the tail again, or we found a 
             # boundary before and we find a boundary again, which we find out 
             # if the temporary head tmp_head ends up being -1
-            new_state["worm_success"] = jnp.logical_or(
+            individual_worm_success = jnp.logical_or(
                 jnp.logical_and(tmp_head == tail, state["boundary"] == False),
                 jnp.logical_and(tmp_head == -1, state["boundary"] == True)
             )
+            worm_success = jnp.logical_and(
+                individual_worm_success,
+                state["attempted_moves"] + 1 > burn_in_steps
+            )
+
+            # This is the condition that we hit the tail or the boundary,
+            # but we did not reach the necessary steps. In this case,
+            # head and tail are re-initialized randomly and so is
+            # the boolean boundary
+            reset_head_and_tail = jnp.logical_and(
+                individual_worm_success, 
+                state["attempted_moves"] + 1 <= burn_in_steps
+            )
+            new_state["worm_success"] = worm_success
+            new_state["num_stabs"] = num_stabs
+            new_state["burn_in_steps"] = burn_in_steps
 
             # Now if we hit a boundary for the first time, the head is 
             # set back to tail. 
@@ -478,7 +499,7 @@ def worm_step(
                 tmp_head == -1, 
                 state["boundary"] == False
             )
-            # Notice that the second time you hit a boundary the head 
+            # Notice that the second time a boundary is hit the head 
             # should end up being -1
             new_state["head"] = jax.lax.cond(
                 set_head_to_tail, 
@@ -492,9 +513,48 @@ def worm_step(
                 state["boundary"]
             )
             new_state["tail"] = state["tail"]
+            new_state["key"] = state["key"]
+
+            def fun_reset(args):
+                new_state, state = args
+                num_stabs = new_state["num_stabs"]
+                new_base_key = new_state["key"]
+                new_base_key, subkey = jax.random.split(new_base_key)
+                new_initial_head = jax.random.randint(subkey, 1, 0, num_stabs)[0]
+                new_state["head"] = new_initial_head
+                new_state["tail"] = new_initial_head
+                new_state["boundary"] = False
+                new_state["key"] = new_base_key
+                return new_state
+                
+
+            def fun_do_not_reset(args):
+                new_state, state = args
+                set_head_to_tail = jnp.logical_and(
+                    tmp_head == -1, 
+                    state["boundary"] == False
+                )
+                # Notice that the second time a boundary is hit the head 
+                # should end up being -1
+                new_state["head"] = jax.lax.cond(
+                    set_head_to_tail, 
+                    lambda: state["tail"], 
+                    lambda: tmp_head
+                )
+                # In addition, we mark whether we hit a boundary or not.
+                # If we hit it before it stays True of course
+                new_state["boundary"] = jnp.logical_or(
+                    tmp_head == -1, 
+                    state["boundary"]
+                )
+                new_state["tail"] = state["tail"]
+                new_state["key"] = state["key"]
+                return new_state
+            
+            new_state = jax.lax.cond(reset_head_and_tail, fun_reset, fun_do_not_reset, (new_state, state))
+
             new_state["accepted_moves"] = state["accepted_moves"] + 1
             new_state["attempted_moves"] = state["attempted_moves"] + 1
-            new_state["key"] = state["key"]
             new_state["edge"] = edge
             new_state["power"] = power
             new_state["stab_bool"] = stab_bool
@@ -546,6 +606,7 @@ def run_worm(
     error_model: ErrorModelLindbladTwoOddPrime,
     compute_full_chi: Callable,
     num_stabs: int,
+    burn_in_steps,
     max_worm_steps: int,
 ) -> Dict:
     """ Implements the "split" worm algorithm which is 
@@ -593,9 +654,11 @@ def run_worm(
     # initial_worm_state["h_mod_p"] = h_x_mod_p
     initial_worm_state["accepted_moves"] = 0
     initial_worm_state["attempted_moves"] = 0
+    initial_worm_state["num_stabs"] = num_stabs
     initial_worm_state["head"] = initial_head
     initial_worm_state["tail"] = initial_head
     initial_worm_state["key"] = base_key
+    initial_worm_state["burn_in_steps"] = burn_in_steps
     worm_step_partial = partial(
         worm_step, 
         h_error_mod_p=h_error_mod_p, 
@@ -627,19 +690,21 @@ def run_worm(
     return new_worm_state
 
 def run_worm_moebius(
+    gamma_t: ArrayLike,
     syndrome_id: str, 
     moebius_setup: Dict,
-    worm_setup : Dict, 
-    gamma_t: ArrayLike,
+    worm_setup: Dict,
+    keys_setup: Dict
 ) -> Dict:
     length = moebius_setup["length"]
     width = moebius_setup["length"]
     p = moebius_setup["p"]
     num_samples = worm_setup["num_samples"]
     num_worms = worm_setup["num_worms"]
+    burn_in_steps = worm_setup["burn_in_steps"]
     max_worm_steps = worm_setup["max_worm_steps"]
-    worm_master_seed = worm_setup["worm_master_seed"]
-    error_master_seed = worm_setup["error_master_seed"]
+    worm_master_seed = keys_setup["worm_master_seed"]
+    error_master_seed = keys_setup["error_master_seed"]
 
     
     d = 2 * p
@@ -700,7 +765,7 @@ def run_worm_moebius(
     initial_worm_errors_sharded = jax.device_put(
         initial_worm_errors, sharding_for_error)
     
-    initial_worm_state = {}
+    # initial_worm_state = {}
     # worm_error = jnp.vstack(
     #     (initial_error_mod_2, initial_error_mod_p))
     # initial_worm_state["worm_success"] = False
@@ -720,6 +785,7 @@ def run_worm_moebius(
         error_model=em_lindblad,
         compute_full_chi=compute_chi,
         num_stabs=num_stabs,
+        burn_in_steps=burn_in_steps,
         max_worm_steps=max_worm_steps
     )
 
@@ -736,14 +802,16 @@ def worm_conditional_entropy(
     gamma_t: ArrayLike,
     syndrome_id: str, 
     moebius_setup: Dict,
-    worm_setup : Dict, 
+    worm_setup: Dict, 
+    keys_setup: Dict
 )-> ArrayLike:
     
     new_worm_state = run_worm_moebius(
+        gamma_t=gamma_t,
         syndrome_id=syndrome_id,
         moebius_setup=moebius_setup,
         worm_setup=worm_setup,
-        gamma_t=gamma_t
+        keys_setup=keys_setup
     )
 
     def get_binary_entropy(chi_vec, success_vec):
@@ -751,7 +819,7 @@ def worm_conditional_entropy(
         num_success = jnp.sum(success_vec)
         # Sets simply to zero failed attempts so that they are not counted
         chi_vec_marked = jnp.where(success_vec, chi_vec, 0)
-        p1 = jnp.mean(chi_vec_marked) / num_success
+        p1 = jnp.sum(chi_vec_marked) / num_success
         p0 = 1 - p1
         binary_entropy = -jax.scipy.special.xlogy(p0, p0) / jnp.log(2)
         binary_entropy += -jax.scipy.special.xlogy(p1, p1) / jnp.log(2)
@@ -761,6 +829,37 @@ def worm_conditional_entropy(
     binary_entropies = jax.vmap(get_binary_entropy)(new_worm_state["chi"], new_worm_state["worm_success"])
     cond_entropy = jnp.mean(binary_entropies)
     return cond_entropy
+
+def worm_coherent_information(
+    gamma_t: ArrayLike,
+    moebius_setup: Dict,
+    worm_setup: Dict,
+    plaquette_keys_setup: Dict,
+    vertex_keys_setup
+)-> ArrayLike:
+    
+    plaquette_conditional_entropy = worm_conditional_entropy(
+        gamma_t=gamma_t,
+        syndrome_id="plaquette",
+        moebius_setup=moebius_setup,
+        worm_setup=worm_setup,
+        keys_setup=plaquette_keys_setup
+    )
+
+    vertex_conditional_entropy = worm_conditional_entropy(
+        gamma_t=gamma_t,
+        syndrome_id="vertex",
+        moebius_setup=moebius_setup,
+        worm_setup=worm_setup,
+        keys_setup=vertex_keys_setup
+    )
+
+    coherent_info = (1.0 - plaquette_conditional_entropy - 
+                     vertex_conditional_entropy)
+    
+    return coherent_info
+
+    
     
 
 

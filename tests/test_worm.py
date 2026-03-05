@@ -256,6 +256,7 @@ def test_run_worm_plaquette(moebius_code_example):
     syndrome_mod_2 = jnp.mod(syndrome, 2)
     syndrome_mod_p = jnp.mod(syndrome, p)
 
+    burn_in_steps = 0
     max_steps = 10000
     base_key = jax.random.PRNGKey(87)
     initial_worm_state = {}
@@ -280,6 +281,7 @@ def test_run_worm_plaquette(moebius_code_example):
         em_lindblad,
         moebius_code.compute_plaquette_syndrome_chi_x,
         moebius_code.num_plaquette_checks,
+        burn_in_steps,
         max_steps
     )
     
@@ -337,6 +339,7 @@ def test_run_worm_vertex(moebius_code_example):
     syndrome_mod_p = jnp.mod(syndrome, p)
 
     max_steps = 10000
+    burn_in_steps = 5000
     base_key = jax.random.PRNGKey(7)
     initial_worm_state = {}
     # Note specifying INT_DTYPE here is important because it 
@@ -360,6 +363,7 @@ def test_run_worm_vertex(moebius_code_example):
         em_lindblad,
         moebius_code.compute_vertex_syndrome_chi_z,
         moebius_code.num_vertex_checks,
+        burn_in_steps,
         max_steps
     )
 
