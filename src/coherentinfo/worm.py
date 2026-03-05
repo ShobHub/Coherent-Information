@@ -836,7 +836,7 @@ def worm_coherent_information(
     worm_setup: Dict,
     plaquette_keys_setup: Dict,
     vertex_keys_setup
-)-> ArrayLike:
+)-> Tuple:
     
     plaquette_conditional_entropy = worm_conditional_entropy(
         gamma_t=gamma_t,
@@ -857,7 +857,11 @@ def worm_coherent_information(
     coherent_info = (1.0 - plaquette_conditional_entropy - 
                      vertex_conditional_entropy)
     
-    return coherent_info
+    return (
+        coherent_info, 
+        plaquette_conditional_entropy, 
+        vertex_conditional_entropy
+    )
 
     
     
