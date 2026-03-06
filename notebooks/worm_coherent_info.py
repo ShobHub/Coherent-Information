@@ -2,7 +2,7 @@ from jax.typing import ArrayLike
 import jax.numpy as jnp
 from functools import partial
 import numpy as np
-from typing import Dict
+from typing import Dict, List
 from coherentinfo.moebius_two_odd_prime import MoebiusCodeTwoOddPrime
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
 from coherentinfo.worm import (
@@ -76,16 +76,16 @@ def plot_coherent_information(
         plt.show()
 
 def run_worm_simulation(
+    gamma_list: list,
     moebius_setup: Dict,
     worm_setup: Dict
 ):
-    num_gamma = 25
-    gamma_min = 0.08
-    gamma_max = 0.6
-    gamma_t_list = (np.linspace(gamma_min, gamma_max, num_gamma)).tolist()
+    # gamma_t_list = (np.linspace(gamma_min, gamma_max, num_gamma)).tolist()
+
+    num_gamma = len(gamma_list)
 
     result = {}
-    result["gamma_t"] = gamma_t_list
+    result["gamma_t"] = gamma_list
 
     result["worm_setup"] = worm_setup
     result["moebius_setup"] = moebius_setup
@@ -157,15 +157,26 @@ def run_worm_simulation(
 
 
 def main():
-    moebius_setup = {"length": 11, "width": 11, "p": 3}
+    num_gamma = 50
+    gamma_min = 0.08
+    gamma_max = 0.6
+    gamma_list = (
+        np.linspace(gamma_min, gamma_max, num_gamma)
+    ).tolist()
+    moebius_setup = {"length": 5, "width": 5, "p": 3}
+    print(f"Moebius setup = {moebius_setup}")
 
     worm_setup = {}
-    worm_setup["num_samples"] = 5 * N_CPUS
-    worm_setup["num_worms"] = 200
-    worm_setup["burn_in_steps"] = 4000
-    worm_setup["max_worm_steps"] = 7000
+    worm_setup["num_samples"] = 20 * N_CPUS
+    worm_setup["num_worms"] = 500
+    worm_setup["burn_in_steps"] = 1000
+    worm_setup["max_worm_steps"] = 3000
 
-    result = run_worm_simulation(moebius_setup, worm_setup)
+    result = run_worm_simulation(
+        gamma_list,
+        moebius_setup, 
+        worm_setup
+    )
 
     save = True
 
@@ -174,7 +185,14 @@ def main():
                 "_width_" +
                 str(moebius_setup["width"]) +
                 "_p_" +
-                str(moebius_setup["p"]) + ".json"
+                str(moebius_setup["p"]) + 
+                "_gamma_min_" + 
+                str(gamma_min) + 
+                "_gamma_max_" +
+                str(gamma_max) + 
+                "_num_gamma_" + 
+                str(num_gamma) + 
+                ".json"
                 )
 
     if save:
