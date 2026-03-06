@@ -156,9 +156,8 @@ def run_worm_simulation(
     return result
 
 
-
 def main():
-    moebius_setup = {"length": 9, "width": 9, "p": 3}
+    moebius_setup = {"length": 11, "width": 11, "p": 3}
 
     worm_setup = {}
     worm_setup["num_samples"] = 5 * N_CPUS
