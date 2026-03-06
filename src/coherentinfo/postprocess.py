@@ -269,7 +269,7 @@ def miller_madow_conditional_entropy(
     # Double check correctness of the Miller Madow correction for conditional 
     # entropy
     mm_correction = (num_syndrome_chi - num_syndrome) / (2 * num_samples)
-    return jnp.sum(entropy_terms) + mm_correction
+    return jnp.sum(entropy_terms) / num_syndrome_chi + 0 * mm_correction
 
 
 
