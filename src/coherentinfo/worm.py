@@ -22,16 +22,16 @@ def stab_labels(
     stab_mat: ArrayLike
 ) -> ArrayLike:
     """Returns the labels of the two stabilizers 
-    associated with the edge
+    associated with the edge.
     
     Args:
-        edge: index of the edge
-        stab_matrix: the stabilizer matrix of interest
+        edge (int): Index of the edge.
+        stab_matrix (ArrayLike): The stabilizer matrix of interest.
     
     Returns:
-        An array of length two with the labels.
+        ArrayLike: An array of length two with the labels.
     
-    Warning
+    Warning:
         The function shall be used only with stabilizer matrices
         where the edge is involved in at most two checks.
     """
@@ -44,11 +44,11 @@ def stabilizer_edges(
     """Returns edges associated with a stabilizer.
     
     Args:
-        index: index of the stabilizer
-        stab_matrix: the stabilizer matrix of interest.
+        index (int): Index of the stabilizer.
+        stab_matrix (ArrayLike): The stabilizer matrix of interest.
     
     Returns:
-        An array of length 4 with the labels. If the plaquette
+        ArrayLike: An array of length 4 with the labels. If the plaquette
         is at the boundary, i.e., the number of edges involved is
         3, the last element is set to -1.
     """
@@ -64,20 +64,20 @@ def move_error(
     """ Returns the error associated with a local move.
 
     Args:
-        edge: the edge where the mod_2 error is placed
-        power: the power of the mod_p stabilizer error
-        stab_bool: a boolean variable that decides whether
+        edge (int): The edge where the mod_2 error is placed
+        power (int): The power of the mod_p stabilizer error
+        stab_bool (bool): A boolean variable that decides whether
             the first (True) or second (False) incident stabilizer should be 
             picked. If the edge is incident to a single-stabilizer
             then it does not matter. 
-        h_mod_p: the stabilizer matrix mod p
-        p: the odd prime
+        h_mod_p (ArrayLike): The stabilizer matrix mod p.
+        p (int): The odd prime.
 
     Returns:
-        An array with two rows, where the first row is the 
+        ArrayLike: An array with two rows, where the first row is the 
         error associated with the mod_2 move, i.e., zero everywhere 
         and 1 at edge, while the second row the mod_p error with 
-        the corresponding power        
+        the corresponding power.       
     """
 
     incident_stabs = stab_labels(edge, h_mod_p)
@@ -111,26 +111,27 @@ def single_move_probability(
     h_mod_p: ArrayLike,
     p: int,
     error_model: ErrorModelLindbladTwoOddPrime,
-) -> Tuple[ArrayLike]:
-    """Gives the probability of a move
+) -> Tuple:
+    """Gives the probability of a move.
     
     Args:
-        edge: the edge where mod_2 error is placed
-        power: the power of the mod_p error associated with
-            the stabilizer adjacent to edge, that is not head
-        error: the current error, where the first row is the error mod 2
-            and the second the error mod p
-        stab_bool: a boolean variable that decides whether
+        edge: The edge where mod_2 error is placed.
+        power: The power of the mod_p error associated with
+            the stabilizer adjacent to edge, that is not head.
+        error: The current error, where the first row is the error mod 2
+            and the second the error mod p.
+        stab_bool: A boolean variable that decides whether
             the first (True) or second (False) incident stabilizer should be 
             picked. If the edge is incident to a single-stabilizer
             then it does not matter. 
-        h_mod_p: the stabilizer matrix mod p
-        p: the odd prime
-        error_model: the error model to be used to obtain the probabilities
+        h_mod_p: The stabilizer matrix mod p.
+        p: the odd prime.
+        error_model: The error model to be used to obtain the probabilities.
     
     Returns:
-        The probability of a move and the corresponding probability associated
-        with the initial error. Their ratio gives the acceptance probability
+        Tuple: The probability of a move and the corresponding probability 
+        associated with the initial error. Their ratio gives the acceptance 
+        probability.
     """
     error_mod_2 = error[0, :]
     error_mod_p = error[1, :] 
@@ -199,11 +200,26 @@ def all_move_probabilities(
     h_mod_p: ArrayLike,
     p: int,
     error_model: ErrorModelLindbladTwoOddPrime,
-) -> Tuple[ArrayLike, ArrayLike]:
+) -> Tuple:
     """Returns the probability of all possible moves from head.
      This should be used if you want to already weigh the probabilities in 
     advance so that you always accept. However, it comes at the price that you
-     always need to compute all of them. """
+     always need to compute all of them. 
+     
+    Args:
+        error_mod_2 (ArrayLike): The error mod 2.
+        error_mod_p (ArrayLike): The error mod p.
+        head (int): The head position
+        h_mod_p: The stabilizer matrix mod p.
+        p: the odd prime.
+        error_model: The error model to be used to obtain the probabilities.
+    
+    Returns:
+        Tuple: It contains the move probabilities, as well as the edges 
+            associated with the head.
+
+
+     """
 
     head_edges = stabilizer_edges(head, h_mod_p) 
 
@@ -278,7 +294,7 @@ def all_move_probabilities(
 
     return all_probs, head_edges
 
-def random_edge_boundary(key):
+def random_edge_boundary(key: ArrayLike) -> int:
     """Generates a random integer between 0 and 2 (inclusive) using JAX's 
      random number generator.
 
@@ -294,7 +310,7 @@ def random_edge_boundary(key):
     return jax.random.randint(key, 1, 0, 3)
 
 
-def random_edge_bulk(key):
+def random_edge_bulk(key: ArrayLike) -> int:
     """Generates a random integer between 0 and 3 (inclusive) using JAX's 
      random number generator.
 
@@ -314,7 +330,7 @@ def worm_step(
     h_error_mod_p: ArrayLike,
     h_mod_p: ArrayLike,
     error_model: ErrorModelLindbladTwoOddPrime,
-) -> Tuple[Dict, Dict]:
+) -> Tuple:
     """ Implements a single step of the "split" worm algorithm which is 
     suited for the Moebius code for qudits and d = 2 * p p odd prime. As the 
     function, is thought to be used in jax.lax.cond the first two arguments
@@ -322,24 +338,30 @@ def worm_step(
     output (see jax.lax.scan documentation)
 
     Args:
-        worm_state (Dict): a dictionary with the following keys:
-            worm_error (ArrayLike): a JAX array with two rows, where the first
-                row is the error mod 2 and the second the error mod p
-            head (int): the label of the current head of the worm
-            tail (int): the label of the tail of the worm (which stays fixed)
-            worm_success (bool): a boolean that marks whether the worm has 
-                succeded or not. If it succeeds, it skips all remaining
-                attempts
-            accepted_moves (int): counter of accepted moves
-            attempted_moves (int): counter of attempted moves
-            key (ArrayLike): the key used for random number generation, 
-                which will be split inside the function
+        worm_state (Dict): A dictionary with the following keys:
+            worm_error (ArrayLike): A JAX array with two rows, where the first
+                row is the error mod 2 and the second the error mod p.
+            boundary (bool): a boolean that marks if a boundary was ever hit
+                by the current worm or not. If true then the current worm 
+                needs to end at a boundary.
+            accepted_moves (int): Total number of accepted moves.
+            attempted_moves (int): Number of attempted moves.
+            burn_in_step (int): Minimum number of worm steps after which
+                the worm is declared successful.
+            num_stabs (int): An integer that is the number of rows in 
+                h_mod_p.
+            head (int): The final position of the head.
+            tail (int): The final position of the tail. If the worm is 
+                successful and does not hit a boundary then head should be 
+                equal to tail, while this does not necessarily hold 
+                if a boundary was not hit.
+            key (ArrayLike): The last key used for random number generation.
         x (Dict | None): A slice of the worm state, from previous iterations. 
             Usually needed only if you want to keep track of how the 
             worm_state evolves during the scan
-        h_error_mod_p (ArrayLike): the stabilizers mod p that are used to
+        h_error_mod_p (ArrayLike): The stabilizers mod p that are used to
             generate p errors that give no syndrome
-        h_mod_p (ArrayLike): the stabilizers mod p from which the mod p
+        h_mod_p (ArrayLike): The stabilizers mod p from which the mod p
             syndrome can be obtained. Note that if h_error_mod_p is 
             h_z_mod_p, then h_mod_p is h_x_mod_p (and vice versa). The 
             function is set up so that both cases are handled.
@@ -348,8 +370,8 @@ def worm_step(
         
 
     Returns:
-        A tuple with the new worm_state and None, since we do not implement
-        keeping track of the state during the scan.
+        Tuple: A tuple with the new worm_state and None, since we do not 
+        implement keeping track of the state during the scan.
     """
 
     def do_not_attempt_step(worm_state):
@@ -388,7 +410,7 @@ def worm_step(
         stab_bool = jax.random.randint(subkey, 1, 0, 2)[0] == True
         key, subkey = jax.random.split(key)
 
-        # We add these three keys for later convenience. They will be removes
+        # We add these three keys for later convenience. They will be removed
         # at the end since the function needs to return a worm state
         # with the same keys
         worm_state["edge"] = edge
@@ -606,40 +628,62 @@ def run_worm(
     error_model: ErrorModelLindbladTwoOddPrime,
     compute_full_chi: Callable,
     num_stabs: int,
-    burn_in_steps,
+    burn_in_steps: int,
     max_worm_steps: int,
 ) -> Dict:
     """ Implements the "split" worm algorithm which is 
     suited for the Moebius code for qudits and d = 2 * p p odd prime. 
 
     Args:
-        worm_error (ArrayLike): a JAX array with two rows, where the first
+        worm_error (ArrayLike): A JAX array with two rows, where the first
                 row is the error mod 2 and the second the error mod p
-        h_error_mod_p (ArrayLike): the stabilizers mod p that are used to
+        h_error_mod_p (ArrayLike): The stabilizers mod p that are used to
             generate p errors that give no syndrome
-        h_mod_p (ArrayLike): the stabilizers mod p from which the mod p
+        h_mod_p (ArrayLike): The stabilizers mod p from which the mod p
             syndrome can be obtained. Note that if h_error_mod_p is 
             h_z_mod_p, then h_mod_p is h_x_mod_p (and vice versa). The 
             function is set up so that both cases are handled.
         error_model (ErrorModelLindbladTwoOddPrime): The error model used
                 to compute the necessary probabilities.
-        compute_chi (Callable): a function that computes the full logical bit
+        compute_chi (Callable): A function that computes the full logical bit
             i.e., it is equal to 0 if the logical bit is 0 and p if the 
             logical bit is p
-        num_stab (int): an integer that is the number of rows in 
+        num_stabs (int): An integer that is the number of rows in 
             h_mod_p, which is needs to be explicitly passed for JAX 
             compatibility
-        max_worm_steps (int): the maximum number of worm steps
+        burn_in_steps (int): Minimum number of worm steps after which
+            the worm is declared successful
+        max_worm_steps (int): The maximum number of worm steps
         
 
     Returns (Dict):
-        The new worm_state at the end of the split worm algorithm, as a 
-        dictionary with the same entries of initial_worm_state, as well
-        as:
-            worm_error (ArrayLike): a JAX array with two rows, where the first
-                row is the error mod 2 and the second the error mod p
-            key (ArrayLike): the last key used for random number generation
-
+        The worm state at the end of the algorithm represented as a 
+        dictionary with keys:
+            worm_error (ArrayLike): A JAX array with two rows, where the first
+                row is the error mod 2 and the second the error mod p.
+            boundary (bool): A boolean that marks if a boundary was ever hit
+                by the current worm or not. If true then the current worm 
+                needs to end at a boundary.
+            accepted_moves (int): Total number of accepted moves.
+            attempted_moves (int): Number of attempted moves.
+            burn_in_steps (int): Minimum number of worm steps after which
+                the worm is declared successful.
+            num_stabs (int): An integer that is the number of rows in 
+                h_mod_p.
+            head (int): The final position of the head.
+            tail (int): The final position of the tail. If the worm is 
+                successful and does not hit a boundary then head should be 
+                equal to tail, while this does not necessarily hold 
+                if a boundary was not hit.
+            key (ArrayLike): The last key used for random number generation.
+            full_chi (int): An integer that identifies if the final error
+                gives or not a logical error. It is essentially the result 
+                of the commutation relation of new_error - candidate_error
+                with the logical. For d = 2 * p with p odd prime this should 
+                be either 0 or p. It is still stored for sanity check
+            chi (int): A bit, stored as integer, that is in one to one 
+                correspondance with full_chi, and thus is 0 if the error 
+                causes no logical error, while 1 otherwise.
     """
     initial_worm_state = {}
     initial_worm_state["worm_error"] = worm_error
@@ -654,11 +698,12 @@ def run_worm(
     # initial_worm_state["h_mod_p"] = h_x_mod_p
     initial_worm_state["accepted_moves"] = 0
     initial_worm_state["attempted_moves"] = 0
+    initial_worm_state["burn_in_steps"] = burn_in_steps
     initial_worm_state["num_stabs"] = num_stabs
     initial_worm_state["head"] = initial_head
     initial_worm_state["tail"] = initial_head
     initial_worm_state["key"] = base_key
-    initial_worm_state["burn_in_steps"] = burn_in_steps
+    
     worm_step_partial = partial(
         worm_step, 
         h_error_mod_p=h_error_mod_p, 
@@ -696,8 +741,42 @@ def run_worm_moebius(
     worm_setup: Dict,
     keys_setup: Dict
 ) -> Dict:
+    """ Runs the split worm algorithm on either the vertex or the plaquettes. 
+    In particular, it generates many syndromes and correspondingly many errors
+    giving the same syndrome. 
+    
+    Args:
+        gamma_t (ArrayLike): The error parameter gamma_t.
+        syndrome_id (str): A string that is either 'vertex' or 'plaquette' that
+            defines whether the worm should be run using vertex or plaquette
+            stabilizers.
+        moebius_setup (Dict): A dictionary that specifies the details of the 
+            Moebius code with keys:
+                length (int): Length of the Moebius.
+                width (int): Widths of the Moebius.
+                p (int): Odd prime that specifies the dimension of the qudit
+                    as d = 2 * p. 
+        worm_setup (Dict): A dictionary that speficies the parameters of 
+            the worm simulation. The keys are:
+                num_samples (int): Number of sampled syndromes. Note the
+                    same syndrome might be sampled multiple times
+                num_worms (int): Number of worms, i.e., errors with the same
+                    syndrome per syndrome. Note that some worms might fail
+                    so not necessarily all of them are used in the end.
+                burn_in_steps (int): Minimum number of worm steps after which
+                the worm is declared successful.
+        keys_setup (Dict): A dictionary that stores the necessary seeds, with
+            keys:
+                worm_master_seed (int): The seed used to generate the worms.
+                error_master_seed (int): The seed used to generate the errors.  
+
+    Returns:
+        Dict:    
+
+     
+    """
     length = moebius_setup["length"]
-    width = moebius_setup["length"]
+    width = moebius_setup["width"]
     p = moebius_setup["p"]
     num_samples = worm_setup["num_samples"]
     num_worms = worm_setup["num_worms"]
@@ -826,7 +905,9 @@ def worm_conditional_entropy(
         return binary_entropy
 
 
-    binary_entropies = jax.vmap(get_binary_entropy)(new_worm_state["chi"], new_worm_state["worm_success"])
+    binary_entropies = jax.vmap(get_binary_entropy)(
+        new_worm_state["chi"], new_worm_state["worm_success"]
+    )
     cond_entropy = jnp.mean(binary_entropies)
     return cond_entropy
 
