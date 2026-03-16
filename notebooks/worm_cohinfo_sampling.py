@@ -5,7 +5,7 @@ import numpy as np
 from typing import Dict, List
 from coherentinfo.moebius_two_odd_prime import MoebiusCodeTwoOddPrime
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
-from coherentinfo.worm_sampling_errors import (
+from coherentinfo.cohinfo_ds_method import (
     worm_sampling_coherent_information
 )
 import time
