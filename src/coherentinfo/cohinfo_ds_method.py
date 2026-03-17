@@ -1,4 +1,4 @@
-# Contains functions to run the worm and compute via sampling errors and directly 
+# Contains functions to run the worm and compute via direct sampling (DS) errors and directly 
 # computing the conditional entropies. This approach will be substituted by the one in 
 # which we first sample the errors, obtain the syndromes with the corresponding
 # probabilities and then run the worm on each sampled syndrome. The two approaches
@@ -22,7 +22,7 @@ from functools import partial
 
 
 
-def run_worm_moebius_sampling(
+def run_worm_moebius_ds(
     gamma_t: ArrayLike,
     syndrome_id: str, 
     moebius_setup: Dict,
@@ -165,7 +165,7 @@ def run_worm_moebius_sampling(
 
     return new_worm_state
 
-def worm_sampling_conditional_entropy(
+def worm_ds_conditional_entropy(
     gamma_t: ArrayLike,
     syndrome_id: str, 
     moebius_setup: Dict,
@@ -173,7 +173,7 @@ def worm_sampling_conditional_entropy(
     keys_setup: Dict
 )-> ArrayLike:
     
-    new_worm_state = run_worm_moebius_sampling(
+    new_worm_state = run_worm_moebius_ds(
         gamma_t=gamma_t,
         syndrome_id=syndrome_id,
         moebius_setup=moebius_setup,
@@ -199,7 +199,7 @@ def worm_sampling_conditional_entropy(
     cond_entropy = jnp.mean(binary_entropies)
     return cond_entropy
 
-def worm_sampling_coherent_information(
+def worm_ds_coherent_information(
     gamma_t: ArrayLike,
     moebius_setup: Dict,
     worm_setup: Dict,
@@ -207,7 +207,7 @@ def worm_sampling_coherent_information(
     vertex_keys_setup
 )-> Tuple:
     
-    plaquette_conditional_entropy = worm_sampling_conditional_entropy(
+    plaquette_conditional_entropy = worm_ds_conditional_entropy(
         gamma_t=gamma_t,
         syndrome_id="plaquette",
         moebius_setup=moebius_setup,
@@ -215,7 +215,7 @@ def worm_sampling_coherent_information(
         keys_setup=plaquette_keys_setup
     )
 
-    vertex_conditional_entropy = worm_sampling_conditional_entropy(
+    vertex_conditional_entropy = worm_ds_conditional_entropy(
         gamma_t=gamma_t,
         syndrome_id="vertex",
         moebius_setup=moebius_setup,

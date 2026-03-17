@@ -6,7 +6,7 @@ from typing import Dict, List
 from coherentinfo.moebius_two_odd_prime import MoebiusCodeTwoOddPrime
 from coherentinfo.errormodel import ErrorModelLindbladTwoOddPrime
 from coherentinfo.cohinfo_ds_method import (
-    worm_sampling_coherent_information
+    worm_ds_coherent_information
 )
 import time
 import json
@@ -131,7 +131,7 @@ def run_worm_simulation(
             result["plaquette_error_master_seed"][index]
 
         coherent_information, plaquette_ce, vertex_ce = \
-            worm_sampling_coherent_information(
+            worm_ds_coherent_information(
                 gamma_t=result["gamma_t"][index],
                 moebius_setup=moebius_setup,
                 worm_setup=worm_setup,
