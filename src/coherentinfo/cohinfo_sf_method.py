@@ -9,9 +9,9 @@ from coherentinfo.worm import run_worm
 from coherentinfo.dtypes import INT_DTYPE
 import os
 import jax
-N_CPUS = os.cpu_count()
-N_USED_CPUS = N_CPUS
-jax.config.update('jax_num_cpu_devices', N_USED_CPUS)
+# N_CPUS = os.cpu_count()
+# N_USED_CPUS = N_CPUS
+# jax.config.update('jax_num_cpu_devices', N_USED_CPUS)
 from jax.sharding import Mesh, PartitionSpec, NamedSharding
 from jax.typing import ArrayLike
 import jax.numpy as jnp

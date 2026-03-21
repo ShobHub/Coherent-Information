@@ -11,9 +11,9 @@ from coherentinfo.worm import run_worm
 from coherentinfo.dtypes import INT_DTYPE
 import os
 import jax
-N_CPUS = os.cpu_count()
-N_USED_CPUS = N_CPUS
-jax.config.update('jax_num_cpu_devices', N_USED_CPUS)
+# N_CPUS = os.cpu_count()
+# N_USED_CPUS = N_CPUS
+# jax.config.update('jax_num_cpu_devices', N_USED_CPUS)
 from jax.sharding import Mesh, PartitionSpec, NamedSharding
 from jax.typing import ArrayLike
 import jax.numpy as jnp
@@ -25,7 +25,8 @@ def run_worm_moebius_ds(
     syndrome_id: str, 
     moebius_setup: Dict,
     worm_setup: Dict,
-    keys_setup: Dict
+    keys_setup: Dict,
+    shard: bool = True
 ) -> Dict:
     """ Runs the split worm algorithm on either the vertex or the plaquettes. 
     In particular, it generates many syndromes and correspondingly many errors
@@ -119,16 +120,16 @@ def run_worm_moebius_ds(
         generate_initial_worm_errors, in_axes=(0, None))(error_keys, em_lindblad)
     
     # Sharding the arrays
-    devices = jax.devices()  # Assuming this returns 16 devices
-    mesh = Mesh(devices, ('batch',))
+    # devices = jax.devices()  # Assuming this returns 16 devices
+    # mesh = Mesh(devices, ('batch',))
 
     # sharding_for_keys = NamedSharding(mesh,  PartitionSpec('batch', None))
     # worm_keys_sharded = jax.device_put(worm_keys, sharding_for_keys)
 
     # 2. Define sharding: Split the 0th axis across 'batch', leave others whole
-    sharding_for_error = NamedSharding(mesh,  PartitionSpec('batch', None, None))
-    initial_worm_errors_sharded = jax.device_put(
-        initial_worm_errors, sharding_for_error)
+    # sharding_for_error = NamedSharding(mesh,  PartitionSpec('batch', None, None))
+    # initial_worm_errors_sharded = jax.device_put(
+    #     initial_worm_errors, sharding_for_error)
     
     # initial_worm_state = {}
     # worm_error = jnp.vstack(
@@ -159,7 +160,21 @@ def run_worm_moebius_ds(
     # Then over initial errors
     run_worm_vmap = jax.vmap(run_worm_vmap, in_axes=(0, 0))
     run_worm_jit = jax.jit(run_worm_vmap)
-    new_worm_state = run_worm_jit(initial_worm_errors_sharded, worm_keys)
+    if shard:
+        devices = jax.devices()  # Assuming this returns 16 devices
+        mesh = Mesh(devices, ('batch',))
+
+        # sharding_for_keys = NamedSharding(mesh,  PartitionSpec('batch', None))
+        # worm_keys_sharded = jax.device_put(worm_keys, sharding_for_keys)
+
+        # 2. Define sharding: Split the 0th axis across 'batch', leave others whole
+        sharding_for_error = NamedSharding(mesh,  PartitionSpec('batch', None, None))
+        initial_worm_errors_sharded = jax.device_put(
+            initial_worm_errors, sharding_for_error)
+        new_worm_state = run_worm_jit(initial_worm_errors_sharded, worm_keys)
+    else:
+        new_worm_state = run_worm_jit(initial_worm_errors, worm_keys)
+
 
     return new_worm_state
 
@@ -168,7 +183,8 @@ def worm_ds_conditional_entropy(
     syndrome_id: str, 
     moebius_setup: Dict,
     worm_setup: Dict, 
-    keys_setup: Dict
+    keys_setup: Dict,
+    shard: bool = True
 )-> ArrayLike:
     
     new_worm_state = run_worm_moebius_ds(
@@ -176,7 +192,8 @@ def worm_ds_conditional_entropy(
         syndrome_id=syndrome_id,
         moebius_setup=moebius_setup,
         worm_setup=worm_setup,
-        keys_setup=keys_setup
+        keys_setup=keys_setup,
+        shard=shard
     )
 
     def get_binary_entropy(chi_vec, success_vec):
@@ -207,7 +224,8 @@ def worm_ds_coherent_information(
     moebius_setup: Dict,
     worm_setup: Dict,
     plaquette_keys_setup: Dict,
-    vertex_keys_setup
+    vertex_keys_setup,
+    shard: bool = True
 )-> Tuple:
     
     plaquette_conditional_entropy = worm_ds_conditional_entropy(
@@ -215,7 +233,8 @@ def worm_ds_coherent_information(
         syndrome_id="plaquette",
         moebius_setup=moebius_setup,
         worm_setup=worm_setup,
-        keys_setup=plaquette_keys_setup
+        keys_setup=plaquette_keys_setup,
+        shard=shard
     )
 
     vertex_conditional_entropy = worm_ds_conditional_entropy(
@@ -223,7 +242,8 @@ def worm_ds_coherent_information(
         syndrome_id="vertex",
         moebius_setup=moebius_setup,
         worm_setup=worm_setup,
-        keys_setup=vertex_keys_setup
+        keys_setup=vertex_keys_setup,
+        shard=shard
     )
 
     coherent_info = (1.0 - plaquette_conditional_entropy - 
