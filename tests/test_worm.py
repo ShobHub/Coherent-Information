@@ -17,6 +17,7 @@ import jax
 from coherentinfo.dtypes import INT_DTYPE
 
 
+
 def test_stab_labels(moebius_code_example) -> None:
     """Tests that the function that given an edge returns the 
     stabilizers is correct."""
@@ -186,7 +187,7 @@ def test_all_plaquette_moves_probability(moebius_code_example):
     move_probs = func(error_mod_2, error_mod_p, 
                       head, h_x_mod_p, moebius_code.p, em_lindblad)
 
-    move_probs_test = np.zeros([4, moebius_code.p])
+    move_probs_test = np.zeros([4, moebius_code.p], dtype=np.float32)
 
     head_edges = stabilizer_edges(head, h_x_mod_p)
     for edge_index in range(4):
@@ -222,9 +223,20 @@ def test_all_plaquette_moves_probability(moebius_code_example):
     if head_edges [-1] == -1:
         move_probs_test[3, :] = -1.0
     
-    cond = jnp.all(move_probs[0] == move_probs_test)
-    assert cond == True, \
-        f"The move probabilities are not correct in example #{idx}"
+    # Due to the behaviour on GPU the assertion has to be implemented 
+    # in this way for the test to pass on GPU as well
+
+    try:
+        np.testing.assert_allclose(
+            np.array(move_probs[0]),
+            move_probs_test,
+            rtol=1e-5,
+            atol=1e-6
+        )
+    except AssertionError as e:
+        raise AssertionError(
+            f"The move probabilities are not correct in example #{idx}\n{e}"
+        )
     
 
 def test_run_worm_plaquette(moebius_code_example):
