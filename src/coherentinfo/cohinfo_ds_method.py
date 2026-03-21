@@ -20,8 +20,6 @@ import jax.numpy as jnp
 from functools import partial
 
 
-
-
 def run_worm_moebius_ds(
     gamma_t: ArrayLike,
     syndrome_id: str, 
@@ -188,8 +186,13 @@ def worm_ds_conditional_entropy(
         chi_vec_marked = jnp.where(success_vec, chi_vec, 0)
         p1 = jnp.sum(chi_vec_marked) / num_success
         p0 = 1 - p1
-        binary_entropy = -jax.scipy.special.xlogy(p0, p0) / jnp.log(2)
-        binary_entropy += -jax.scipy.special.xlogy(p1, p1) / jnp.log(2)
+        # This is a trick needed for JAX not to evaluate log(0)
+        # and give nan
+        eps = jnp.finfo(jnp.float32).tiny
+        p0_safe = jnp.clip(p0, eps, 1.0)
+        p1_safe = jnp.clip(p1, eps, 1.0)
+        binary_entropy = -jax.scipy.special.xlogy(p0, p0_safe) / jnp.log(2)
+        binary_entropy += -jax.scipy.special.xlogy(p1, p1_safe) / jnp.log(2)
         return binary_entropy
 
 
