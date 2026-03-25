@@ -80,8 +80,6 @@ def run_worm_simulation(
     moebius_setup: Dict,
     worm_setup: Dict
 ):
-    # gamma_t_list = (np.linspace(gamma_min, gamma_max, num_gamma)).tolist()
-
     num_gamma = len(gamma_list)
 
     result = {}
@@ -108,6 +106,7 @@ def run_worm_simulation(
     with open('/sys/devices/virtual/dmi/id/sys_vendor') as f:
         result["vendor"] = f.read()
 
+    # These do not matter if a GPU is uses
     result["number_of_available_cpus"] = N_CPUS
     result["number_of_used_cpus"] = N_USED_CPUS
 
@@ -157,8 +156,8 @@ def run_worm_simulation(
 
 
 def main():
-    num_gamma = 50
-    gamma_min = 0.08
+    num_gamma = 2
+    gamma_min = 0.05
     gamma_max = 0.6
     gamma_list = (
         np.linspace(gamma_min, gamma_max, num_gamma)
@@ -167,10 +166,22 @@ def main():
     print(f"Moebius setup = {moebius_setup}")
 
     worm_setup = {}
-    worm_setup["num_samples"] = 20 * N_CPUS
+    worm_setup["num_samples"] = 64 * 10 # N_USED_CPUS  # int(20 * n_cpus / 4)
     worm_setup["num_worms"] = 500
-    worm_setup["burn_in_steps"] = 1000
-    worm_setup["max_worm_steps"] = 3000
+    burn_in_const = 5000
+    max_worm_const = 3000
+    scaling = "quadratic"
+    worm_setup["burn_in_const"] = burn_in_const
+    worm_setup["max_worm_const"] = burn_in_const
+    if scaling == "quadratic":
+        worm_setup["burn_in_steps"] = moebius_setup["length"] ** 2 * \
+            burn_in_const  
+        worm_setup["max_worm_steps"] = worm_setup["burn_in_steps"] + \
+            moebius_setup["length"] ** 2 * max_worm_const
+    elif scaling == "linear":
+        worm_setup["burn_in_steps"] = moebius_setup["length"] * burn_in_const 
+        worm_setup["burn_in_steps"] = worm_setup["burn_in_steps"] + \
+            moebius_setup["length"] * max_worm_const
 
     result = run_worm_simulation(
         gamma_list,
@@ -185,7 +196,7 @@ def main():
                 "_width_" +
                 str(moebius_setup["width"]) +
                 "_p_" +
-                str(moebius_setup["p"]) + 
+                str(moebius_setup["p"]) + scaling +  
                 "_gamma_min_" + 
                 str(gamma_min) + 
                 "_gamma_max_" +
