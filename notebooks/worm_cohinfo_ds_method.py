@@ -116,6 +116,7 @@ def run_worm_simulation(
 
     start = time.time()
     for index in range(num_gamma):
+        print(f"Index: {index}")
         print(f"Gamma: {result["gamma_t"][index]}")
         plaquette_keys_setup = {}
         plaquette_keys_setup["worm_master_seed"] = \
@@ -135,7 +136,8 @@ def run_worm_simulation(
                 moebius_setup=moebius_setup,
                 worm_setup=worm_setup,
                 plaquette_keys_setup=plaquette_keys_setup,
-                vertex_keys_setup=vertex_keys_setup
+                vertex_keys_setup=vertex_keys_setup,
+                shard=False
             )
         
         print(f"Coherent Information: {coherent_information}")
@@ -145,9 +147,8 @@ def run_worm_simulation(
         result["plaquette_conditional_entropy"].append(plaquette_ce.tolist())
         result["vertex_conditional_entropy"].append(vertex_ce.tolist())
         result["coherent_information"].append(coherent_information.tolist())
-    end = time.time()
 
-    computation_time = end - start
+    computation_time = time.time() - start
 
     result["computation_time"] = computation_time
     result["time_unit"] = "sec"
@@ -156,9 +157,9 @@ def run_worm_simulation(
 
 
 def main():
-    num_gamma = 2
-    gamma_min = 0.05
-    gamma_max = 0.6
+    num_gamma = 25
+    gamma_min = 0.05 #0.05 for p = 3
+    gamma_max = 0.7
     gamma_list = (
         np.linspace(gamma_min, gamma_max, num_gamma)
     ).tolist()
@@ -166,7 +167,7 @@ def main():
     print(f"Moebius setup = {moebius_setup}")
 
     worm_setup = {}
-    worm_setup["num_samples"] = 64 * 10 # N_USED_CPUS  # int(20 * n_cpus / 4)
+    worm_setup["num_samples"] = 64 * 8 # N_USED_CPUS  # int(20 * n_cpus / 4)
     worm_setup["num_worms"] = 500
     burn_in_const = 5000
     max_worm_const = 3000
@@ -196,7 +197,8 @@ def main():
                 "_width_" +
                 str(moebius_setup["width"]) +
                 "_p_" +
-                str(moebius_setup["p"]) + scaling +  
+                str(moebius_setup["p"]) + 
+                "_" + scaling +  
                 "_gamma_min_" + 
                 str(gamma_min) + 
                 "_gamma_max_" +
